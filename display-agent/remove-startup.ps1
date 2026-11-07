@@ -1,0 +1,15 @@
+{
+  "name": "esg-display-agent",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Windows display agent with power scheduling, kiosk Chrome, sleep, wake and local server discovery support",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "configure": "node configure.js",
+    "check": "node --check agent.js && node --check configure.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

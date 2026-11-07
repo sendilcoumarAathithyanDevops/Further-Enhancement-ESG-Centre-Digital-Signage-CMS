@@ -1,0 +1,141 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f4f6f5;
+}
+
+.app {
+  display: flex;
+}
+
+/* AUTH PAGE (LOGIN / SIGNUP) */
+.auth-layout {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(135deg, #f0fdf4, #eef2ff);
+  margin-left: 0 !important;
+}
+
+/* MAIN DASHBOARD LAYOUT */
+/* .main-content {
+  flex: 1;
+  min-height: 100vh;
+  margin-left: 305px;
+  padding: 42px 44px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.88),
+    rgba(255, 255, 255, 0.88)),
+    #f4f6f5;
+} */
+
+.main-content {
+  flex: 1;
+  min-height: 100vh;
+
+  margin-left: 305px;
+  width: calc(100% - 305px);
+
+  padding: 42px 44px;
+  overflow-x: auto;
+  transition: margin-left .25s ease, width .25s ease;
+}
+
+/* COLLAPSED SIDEBAR */
+.main-content.collapsed {
+  margin-left: 100px;
+  width: calc(100% - 100px);
+}
+
+.page {
+  width: 100%;
+}
+
+.button-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #cbd8d0;
+  background: #c8d2ff;
+  color: #000000;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.button-back:hover {
+  background: #a6c6ff;
+  border-color: #7eadff;
+}
+
+.button-back:focus-visible {
+  outline: 3px solid rgba(79, 157, 104, 0.3);
+  outline-offset: 2px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.page h1 {
+  font-size: 44px;
+  margin: 0 0 12px;
+  color: #111111;
+}
+
+.page p {
+  margin: 0;
+  font-size: 18px;
+  color: #667085;
+}
+
+.new-canvas-box {
+  width: 150px;
+  text-align: center;
+}
+
+.new-canvas-button {
+  width: 150px;
+  height: 115px;
+  border: none;
+  border-radius: 16px;
+  background: white;
+  font-size: 52px;
+  color: #69ad7d;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.new-canvas-text {
+  margin-top: 14px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.route-loading {
+  display: grid;
+  min-height: 55vh;
+  place-items: center;
+  color: #4f7d5d;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .main-content,
+  .main-content.collapsed {
+    padding: 28px 20px;
+  }
+}

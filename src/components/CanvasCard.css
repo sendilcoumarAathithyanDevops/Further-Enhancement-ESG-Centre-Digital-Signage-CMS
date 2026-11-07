@@ -1,0 +1,190 @@
+.saved-canvas-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid #dce5df;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(39, 78, 60, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.saved-canvas-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 34px rgba(39, 78, 60, 0.13);
+}
+
+.saved-canvas-card__preview {
+  overflow: hidden;
+  border-bottom: 1px solid #e2e9e4;
+  background: #f7faf8;
+  flex-shrink: 0;
+}
+
+.saved-canvas-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.saved-canvas-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.saved-canvas-card h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #1b2d25;
+  font-size: 19px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-pill {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #eef5f0;
+  color: #315a49;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.category-pill--environmental {
+  background: #e2f3e7;
+  color: #23673c;
+}
+
+.category-pill--social {
+  background: #e9f0f7;
+  color: #315c7a;
+}
+
+.category-pill--governance {
+  background: #faf5ff;
+  color: #9333ea;
+}
+
+.saved-canvas-card__description-wrap {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0 16px;
+}
+
+.saved-canvas-card__description {
+  display: -webkit-box;
+  min-height: 44px;
+  margin: 0;
+  overflow: hidden;
+  color: #66756e;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.saved-canvas-card__description.is-expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.saved-canvas-card__read-more {
+  align-self: flex-start;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #2d6cdf;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.saved-canvas-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  margin-bottom: 16px;
+  color: #7b8982;
+  font-size: 12px;
+}
+
+/* ✅ NEW: actions layout */
+.saved-canvas-card__actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* shared button base */
+.saved-canvas-card__edit,
+.saved-canvas-card__publish {
+  width: 100%;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 14px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* EDIT button */
+.saved-canvas-card__edit {
+  border: 1px solid #5fa875;
+  background: #ffffff;
+  color: #35724d;
+}
+
+.saved-canvas-card__edit:hover,
+.saved-canvas-card__edit:focus-visible {
+  background: #5fa875;
+  color: #ffffff;
+  outline: none;
+}
+
+/* PUBLISH button */
+.saved-canvas-card__publish {
+  border: 1px solid #2d6cdf;
+  background: #ffffff;
+  color: #2d6cdf;
+}
+
+.saved-canvas-card__publish:hover,
+.saved-canvas-card__publish:focus-visible {
+  background: #2d6cdf;
+  color: #ffffff;
+  outline: none;
+}
+
+/* DELETE button */
+.saved-canvas-card__delete {
+  background: #ff4d4f;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.saved-canvas-card__delete:hover {
+  background: #d9363e;
+}
+
+.saved-canvas-card__edit:disabled,
+.saved-canvas-card__delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
