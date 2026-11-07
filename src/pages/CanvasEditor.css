@@ -1,0 +1,479 @@
+.canvas-editor-page {
+  width: 100%;
+  max-width: 1500px;
+  min-width: 0;
+  overflow-x: hidden;
+  margin: 0 auto;
+}
+
+.canvas-editor-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.canvas-editor-header h1 {
+  margin: 8px 0 7px;
+  color: #17261f;
+  font-size: 36px;
+}
+
+.canvas-editor-header p {
+  font-size: 15px;
+}
+
+.canvas-editor-save,
+.canvas-editor-cancel {
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 13px 20px;
+}
+
+.canvas-editor-save {
+  background: #4f9d68;
+  box-shadow: 0 8px 18px rgba(61, 125, 81, 0.2);
+  color: #ffffff;
+}
+
+.canvas-editor-save:hover:not(:disabled),
+.canvas-editor-save:focus-visible:not(:disabled) {
+  background: #3f8857;
+  outline: 3px solid rgba(79, 157, 104, 0.18);
+}
+
+.canvas-editor-save:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.canvas-editor-cancel {
+  border: 1px solid #cbd8d0;
+  background: #ffffff;
+  color: #466052;
+}
+
+.project-details-card,
+.canvas-stage-card {
+  border: 1px solid #dce5df;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(39, 78, 60, 0.07);
+}
+
+.project-details-card {
+  margin-bottom: 24px;
+  padding: 22px;
+}
+
+.project-details-card__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.project-details-card__heading h2 {
+  margin: 0;
+  color: #1c3026;
+  font-size: 20px;
+}
+
+.project-details-card__heading > span {
+  color: #7b8982;
+  font-size: 12px;
+}
+
+.project-details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  gap: 18px;
+}
+
+.editor-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-field--full {
+  grid-column: 1 / -1;
+}
+
+.editor-field > span {
+  color: #33483d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.editor-field input,
+.editor-field select,
+.editor-field textarea {
+  width: 100%;
+  border: 1px solid #cbd8d0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #20332a;
+  font: inherit;
+  font-size: 14px;
+  padding: 12px 13px;
+}
+
+.editor-field textarea {
+  min-height: 105px;
+  resize: vertical;
+}
+
+.editor-field input:focus,
+.editor-field select:focus,
+.editor-field textarea:focus {
+  border-color: #5fa875;
+  box-shadow: 0 0 0 3px rgba(95, 168, 117, 0.15);
+  outline: none;
+}
+
+.editor-field [aria-invalid="true"] {
+  border-color: #c75a52;
+}
+
+.editor-field small {
+  color: #b2423a;
+  font-size: 12px;
+}
+
+.editor-field__footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: #85918b;
+  font-size: 11px;
+}
+
+.canvas-editor-workspace {
+  display: flex;
+  margin-top: 25px;
+  grid-template-columns: minmax(245px, 300px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.canvas-stage-card {
+  min-width: 100%;
+  padding: 20px;
+}
+
+.canvas-stage-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 16px;
+}
+
+.canvas-stage-card__header h2 {
+  margin: 0 0 4px;
+  color: #1d3127;
+  font-size: 19px;
+}
+
+.canvas-stage-card__header p {
+  font-size: 12px;
+}
+
+.canvas-stage-card__frame {
+  width: 100%;
+  max-width: 1050px;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(27, 58, 42, 0.14);
+}
+
+.canvas-stage-card__note {
+  margin-top: 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.editor-message {
+  margin-bottom: 18px;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+
+.editor-message--error {
+  border: 1px solid #edc3c0;
+  background: #fff3f2;
+  color: #9b312a;
+}
+
+.canvas-editor-loading,
+.canvas-editor-error {
+  max-width: 760px;
+  margin: 80px auto;
+  border: 1px solid #dce5df;
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 36px;
+  text-align: center;
+}
+
+.canvas-editor-error h1 {
+  margin-top: 0;
+  color: #273c31;
+  font-size: 28px;
+}
+
+.canvas-editor-error button {
+  margin-top: 20px;
+  border: 0;
+  border-radius: 9px;
+  background: #5fa875;
+  color: #ffffff;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 11px 16px;
+}
+
+.canvas-editor-mobile-actions {
+  display: none;
+}
+
+@media (max-width: 1050px) {
+  .canvas-editor-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .page-manager__list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    max-height: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .canvas-editor-header > .canvas-editor-save {
+    display: none;
+  }
+
+  .canvas-editor-header h1 {
+    font-size: 30px;
+  }
+
+  .project-details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-field--full {
+    grid-column: auto;
+  }
+
+  .canvas-stage-card__header {
+    flex-direction: column;
+  }
+
+  .canvas-editor-mobile-actions {
+    position: sticky;
+    z-index: 20;
+    bottom: 0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 24px -16px -16px;
+    padding: 14px 16px;
+    border-top: 1px solid #dce5df;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* .canvas-stage-editor-layout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+} */
+
+/* .canvas-stage-editor-layout {
+    display: block;
+} */
+
+.canvas-stage-editor-layout .canvas-stage-card__frame {
+  min-width: 0;
+}
+
+@media (max-width: 1250px) {
+  .canvas-stage-editor-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .widget-sidebar__list {
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+  }
+
+  .widget-sidebar__tip {
+    display: none;
+  }
+}
+
+@media (max-width: 780px) {
+  .widget-sidebar__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.canvas-stage-card__actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.canvas-stage-card__button-row {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.canvas-stage-card__action-btn {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-stage-card__action-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.canvas-stage-card__badge {
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+}
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.preview-modal {
+  width: 95vw;
+  max-height: 90vh;
+  max-width: 1500px;
+  background: white;
+  border-radius: 0;
+  padding: 30px;
+  position: relative;
+  overflow: auto;
+  overflow-y: auto;
+  padding: 70px 30px 30px;
+}
+
+.preview-close {
+  position: absolute;
+  right: 20px;
+  top: 20px;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  line-height: 1;
+  border: none;
+  border-radius: 50%;
+  background: #5fa875;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(67, 126, 84, 0.24);
+  cursor: pointer;
+  z-index: 10000;
+}
+
+.preview-close:hover {
+  background: #4c8b67;
+}
+
+.preview-close:focus-visible {
+  outline: 3px solid rgba(79, 157, 104, 0.34);
+  outline-offset: 2px;
+}
+
+.preview-modal--grid {
+  width: 95vw;
+  max-width: 1700px;
+  background: white;
+  border-radius: 0;
+  padding: 30px;
+  position: relative;
+  padding: 70px 30px 30px;
+}
+
+.preview-modal--single {
+  max-width: 1000px;
+}
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0px;
+}
+
+.preview-grid--single {
+  grid-template-columns: 1fr;
+}
+
+.preview-grid-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.button-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1px solid #cbd8d0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #466052;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.button-back:hover,
+.button-back:focus-visible {
+  background: #f8fcf9;
+  border-color: #5fa875;
+  outline: none;
+}

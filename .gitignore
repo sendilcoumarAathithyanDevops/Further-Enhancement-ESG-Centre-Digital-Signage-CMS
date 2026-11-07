@@ -1,0 +1,43 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# uploaded media (keep the folder structure only)
+/Backend/uploads/images/*
+!/Backend/uploads/images/.gitkeep
+/Backend/uploads/videos/*
+!/Backend/uploads/videos/.gitkeep
+/Backend/uploads/backgrounds/*
+!/Backend/uploads/backgrounds/.gitkeep
+
+# local secrets and display identity
+.env
+Backend/.env
+display-agent/config.json
+display-agent/.chrome-kiosk-profile/
+display-agent/node_modules/
+
+/Backend/uploads/avatars/*
+!/Backend/uploads/avatars/.gitkeep
+/Backend/uploads/documents/*
+!/Backend/uploads/documents/.gitkeep

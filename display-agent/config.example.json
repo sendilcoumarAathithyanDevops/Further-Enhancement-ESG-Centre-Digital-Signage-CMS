@@ -1,0 +1,12 @@
+{
+  "serverUrl": "http://192.168.1.100:5000",
+  "displayUrlBase": "http://192.168.1.100:3000",
+  "monitorId": 1,
+  "deviceToken": "example-device-token-from-pairing",
+  "displayPath": "/display/ENVTV001",
+  "chromePath": "",
+  "autoLaunch": true,
+  "allowSleep": false,
+  "autoDiscoverServer": true,
+  "discoveryPort": 41234
+}
