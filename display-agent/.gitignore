@@ -1,0 +1,4 @@
+node_modules/
+config.json
+.chrome-kiosk-profile/
+npm-debug.log*
