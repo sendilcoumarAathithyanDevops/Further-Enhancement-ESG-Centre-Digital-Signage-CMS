@@ -21,6 +21,25 @@ const templateRoutes = require("./routes/templateRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const configuredSessionSecret = process.env.SESSION_SECRET?.trim();
+const hasConfiguredSessionSecret =
+  configuredSessionSecret &&
+  !configuredSessionSecret.startsWith("replace-with-");
+
+if (process.env.NODE_ENV === "production" && !hasConfiguredSessionSecret) {
+  throw new Error("SESSION_SECRET must be configured in production.");
+}
+
+const sessionSecret = hasConfiguredSessionSecret
+  ? configuredSessionSecret
+  : crypto.randomBytes(32).toString("hex");
+
+if (!hasConfiguredSessionSecret) {
+  console.warn(
+    "SESSION_SECRET is not configured; using a temporary development secret. Sessions will reset when the server restarts."
+  );
+}
+
 const UPLOAD_ROOT = path.join(__dirname, "uploads");
 const BACKGROUND_SETTINGS_MARKER = "__BACKGROUND_SETTINGS__";
 const TRANSITION_SETTINGS_MARKER = "__TRANSITION_SETTINGS__";
@@ -238,7 +257,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
