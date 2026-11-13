@@ -58,7 +58,8 @@ function Navbar({ isOpen, setIsOpen }) {
     { name: "Manage Projects", icon: "📁", path: "/manage-projects" },
     { name: "Manage Templates", icon: "🧩", path: "/manage-templates" },
     { name: "Display Manager", icon: "🖥️", path: "/display-manager" },
-    { name: "Scheduler", icon: "🗓️", path: "/scheduler" },
+    { name: "Content Scheduler", icon: "📅", path: "/content-scheduler" },
+    { name: "Power Scheduler", icon: "🗓️", path: "/scheduler" },
   ];
 
   const producerMenu = [
