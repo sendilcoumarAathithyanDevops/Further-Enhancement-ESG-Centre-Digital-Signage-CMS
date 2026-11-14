@@ -125,20 +125,24 @@ function loadData() {
     fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
   }
 
-  if (Array.isArray(data.monitor_schedules)) {
-    let nextId = data.monitor_schedules.reduce(
-      (maximum, schedule) => Math.max(maximum, Number(schedule.schedule_id) || 0),
+  let changed = false;
+  for (const [table, idField] of [
+    ["monitor_schedules", "schedule_id"],
+    ["display_power_schedules", "power_schedule_id"],
+  ]) {
+    if (!Array.isArray(data[table])) continue;
+    let nextId = data[table].reduce(
+      (maximum, row) => Math.max(maximum, Number(row[idField]) || 0),
       0
     );
-    let changed = false;
-    for (const schedule of data.monitor_schedules) {
-      if (schedule.schedule_id == null) {
-        schedule.schedule_id = ++nextId;
+    for (const row of data[table]) {
+      if (row[idField] == null) {
+        row[idField] = ++nextId;
         changed = true;
       }
     }
-    if (changed) saveData();
   }
+  if (changed) saveData();
 }
 
 function saveData() {
@@ -374,6 +378,52 @@ function fallbackContentSchedulesQuery(sql, params) {
   });
 }
 
+function fallbackPowerSchedulesQuery(sql) {
+  if (!/^SELECT\s+dps\.power_schedule_id,\s*dps\.monitor_id,\s*dps\.created_by/i.test(sql) ||
+      !/\bFROM\s+display_power_schedules\s+dps\b/i.test(sql) ||
+      !/\bJOIN\s+monitors\s+m\b/i.test(sql) ||
+      !/\bJOIN\s+users\s+u\b/i.test(sql)) {
+    return null;
+  }
+
+  const categoryOrder = ["environmental", "social", "governance"];
+  return [...(data.display_power_schedules || [])]
+    .map((schedule) => ({
+      schedule,
+      monitor: (data.monitors || []).find(
+        (item) => Number(item.monitor_id) === Number(schedule.monitor_id)
+      ),
+      user: (data.users || []).find(
+        (item) => Number(item.user_id) === Number(schedule.created_by)
+      ),
+    }))
+    .filter(({ monitor, user }) => monitor && user)
+    .sort((left, right) => {
+      const categoryDifference =
+        categoryOrder.indexOf(left.monitor.monitor_category) -
+        categoryOrder.indexOf(right.monitor.monitor_category);
+      return categoryDifference ||
+        Number(left.monitor.monitor_id) - Number(right.monitor.monitor_id) ||
+        Number(left.schedule.power_schedule_id) - Number(right.schedule.power_schedule_id);
+    })
+    .map(({ schedule, monitor, user }) => ({
+      power_schedule_id: schedule.power_schedule_id,
+      monitor_id: schedule.monitor_id,
+      created_by: schedule.created_by,
+      is_enabled: schedule.is_enabled,
+      sleep_time: schedule.sleep_time,
+      wake_time: schedule.wake_time,
+      repeat_days: schedule.repeat_days,
+      notes: schedule.notes,
+      created_at_iso: fallbackDateTimeIso(schedule.created_at),
+      updated_at_iso: fallbackDateTimeIso(schedule.updated_at),
+      monitor_name: monitor.monitor_name,
+      monitor_category: monitor.monitor_category,
+      location: monitor.location,
+      created_by_username: user.username,
+    }));
+}
+
 function fallbackSchedulerMonitorsQuery(sql) {
   if (!/^SELECT\s+m\.monitor_id,\s*m\.monitor_name/i.test(sql) ||
       !/\bFROM\s+monitors\s+m\b/i.test(sql) ||
@@ -404,6 +454,11 @@ function fallbackSchedulerMonitorsQuery(sql) {
             (item) => Number(item.project_id) === Number(activeItem.project_id)
           )
         : null;
+      const powerSchedule = (data.display_power_schedules || [])
+        .filter((item) => Number(item.monitor_id) === Number(monitor.monitor_id))
+        .sort((left, right) =>
+          Number(right.power_schedule_id) - Number(left.power_schedule_id)
+        )[0];
 
       return {
         monitor_id: monitor.monitor_id,
@@ -426,6 +481,14 @@ function fallbackSchedulerMonitorsQuery(sql) {
         last_connected_at_iso: fallbackDateTimeIso(monitor.last_connected_at),
         current_project_id: project?.project_id || null,
         current_project_name: project?.name || null,
+        ...(powerSchedule ? {
+          power_schedule_id: powerSchedule.power_schedule_id,
+          power_schedule_enabled: powerSchedule.is_enabled,
+          sleep_time: powerSchedule.sleep_time,
+          wake_time: powerSchedule.wake_time,
+          repeat_days: powerSchedule.repeat_days,
+          power_schedule_notes: powerSchedule.notes,
+        } : {}),
       };
     });
 }
@@ -490,6 +553,8 @@ async function query(sql, params = []) {
     if (scheduleOverlap) return [scheduleOverlap, []];
     const contentSchedules = fallbackContentSchedulesQuery(normalized, params);
     if (contentSchedules) return [contentSchedules, []];
+    const powerSchedules = fallbackPowerSchedulesQuery(normalized);
+    if (powerSchedules) return [powerSchedules, []];
     const schedulerMonitors = fallbackSchedulerMonitorsQuery(normalized);
     if (schedulerMonitors) return [schedulerMonitors, []];
     const adminUserRows = fallbackAdminUserQuery(normalized, params);
@@ -513,6 +578,17 @@ async function query(sql, params = []) {
         row[column] = value;
       });
       if (!Object.keys(row).length) continue;
+      if (table === "monitors") {
+        const monitors = data.monitors;
+        const maximumId = monitors.reduce(
+          (maximum, monitor) => Math.max(maximum, Number(monitor.monitor_id) || 0),
+          0
+        );
+        if (row.monitor_id == null) row.monitor_id = maximumId + 1;
+        const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+        row.created_at ||= now;
+        row.updated_at ||= now;
+      }
       if (table === "monitor_schedules") {
         const schedules = data.monitor_schedules;
         const maximumId = schedules.reduce(
@@ -520,6 +596,17 @@ async function query(sql, params = []) {
           0
         );
         if (row.schedule_id == null) row.schedule_id = maximumId + 1;
+        const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+        row.created_at ||= now;
+        row.updated_at ||= now;
+      }
+      if (table === "display_power_schedules") {
+        const schedules = data.display_power_schedules;
+        const maximumId = schedules.reduce(
+          (maximum, schedule) => Math.max(maximum, Number(schedule.power_schedule_id) || 0),
+          0
+        );
+        if (row.power_schedule_id == null) row.power_schedule_id = maximumId + 1;
         const now = new Date().toISOString().slice(0, 19).replace("T", " ");
         row.created_at ||= now;
         row.updated_at ||= now;
@@ -537,9 +624,11 @@ async function query(sql, params = []) {
   if (update) {
     const table = data[update[1]] || [];
     const assignments = update[2].split(",");
+    const assignmentParameterCount = (update[2].match(/\?/g) || []).length;
+    const whereParameters = params.slice(assignmentParameterCount);
     let affectedRows = 0;
     for (const row of table) {
-      if (update[3] && !matchesWhere(update[3], row, params)) continue;
+      if (update[3] && !matchesWhere(update[3], row, whereParameters)) continue;
       for (const assignment of assignments) {
         const match = /^\s*`?([A-Za-z_]\w*)`?\s*=/.exec(assignment);
         if (!match) continue;

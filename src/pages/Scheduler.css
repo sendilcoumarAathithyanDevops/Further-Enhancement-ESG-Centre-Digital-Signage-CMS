@@ -246,7 +246,7 @@
 
 .scheduler-display-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(315px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(315px, 100%), 1fr));
   gap: 18px;
 }
 
@@ -264,10 +264,18 @@
 
 .scheduler-display-card__top {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.scheduler-display-card__top > div:nth-child(2) {
+  min-width: 0;
+}
+
+.scheduler-display-card__top h3 {
+  overflow-wrap: anywhere;
 }
 
 .scheduler-display-card__top p {
@@ -287,6 +295,8 @@
 }
 
 .scheduler-state {
+  justify-self: end;
+  max-width: 100%;
   padding: 7px 10px;
   border-radius: 999px;
   font-size: 0.75rem;
@@ -409,6 +419,11 @@
   background: white;
   border-radius: 18px;
   border: 1px dashed #cddfd4;
+}
+
+.scheduler-table-empty svg {
+  margin-right: 10px;
+  vertical-align: middle;
 }
 
 .scheduler-table-wrap {

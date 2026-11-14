@@ -232,17 +232,29 @@ function Scheduler() {
     }));
   }, [monitors]);
 
-  const openScheduleModal = (monitor, schedule = monitor.power_schedule) => {
-    setScheduleModal({ monitor, schedule });
+  const openScheduleModal = (monitor, schedule) => {
+    const existingSchedule = schedule || monitor?.power_schedule;
+    const scheduleMonitor = monitor || (existingSchedule ? {
+      monitor_id: existingSchedule.monitor_id,
+      monitor_name: existingSchedule.monitor_name || `Display ${existingSchedule.monitor_id}`,
+      monitor_category: existingSchedule.monitor_category || "",
+    } : null);
+
+    if (!scheduleMonitor?.monitor_id) {
+      setError("Unable to find the display for this power schedule. Refresh and try again.");
+      return;
+    }
+
+    setScheduleModal({ monitor: scheduleMonitor, schedule: existingSchedule });
     setScheduleForm({
-      monitorId: String(monitor.monitor_id),
-      isEnabled: schedule ? Boolean(schedule.is_enabled) : true,
-      sleepTime: schedule?.sleep_time || "19:00",
-      wakeTime: schedule?.wake_time || "08:30",
-      repeatDays: schedule?.repeat_days?.length
-        ? schedule.repeat_days
+      monitorId: String(scheduleMonitor.monitor_id),
+      isEnabled: existingSchedule ? Boolean(existingSchedule.is_enabled) : true,
+      sleepTime: existingSchedule?.sleep_time || "19:00",
+      wakeTime: existingSchedule?.wake_time || "08:30",
+      repeatDays: existingSchedule?.repeat_days?.length
+        ? existingSchedule.repeat_days
         : ["monday", "tuesday", "wednesday", "thursday", "friday"],
-      notes: schedule?.notes || "",
+      notes: existingSchedule?.notes || "",
     });
   };
 
@@ -616,7 +628,7 @@ function Scheduler() {
                   <td><span className={`scheduler-schedule-status scheduler-schedule-status--${schedule.is_enabled ? "active" : "cancelled"}`}>{schedule.is_enabled ? "Enabled" : "Disabled"}</span></td>
                   <td>
                     <div className="scheduler-table-actions">
-                      <button type="button" onClick={() => openScheduleModal(monitors.find((item) => Number(item.monitor_id) === Number(schedule.monitor_id)), schedule)} aria-label={`Edit ${schedule.monitor_name} power schedule`}><FiEdit2 /></button>
+                        <button type="button" onClick={() => openScheduleModal(monitors.find((item) => Number(item.monitor_id) === Number(schedule.monitor_id)), schedule)} aria-label={`Edit ${schedule.monitor_name} power schedule`}><FiEdit2 /></button>
                       <button type="button" onClick={() => toggleScheduleEnabled(schedule)} aria-label={`${schedule.is_enabled ? "Disable" : "Enable"} ${schedule.monitor_name} power schedule`}><FiPower /></button>
                       <button type="button" onClick={() => deleteSchedule(schedule)} aria-label={`Delete ${schedule.monitor_name} power schedule`}><FiTrash2 /></button>
                     </div>
@@ -640,7 +652,7 @@ function Scheduler() {
       {scheduleModal && (
         <Modal
           title={scheduleModal.schedule ? "Edit sleep/wake schedule" : "Set sleep/wake schedule"}
-          subtitle={`${scheduleModal.monitor.monitor_name} · ${CATEGORY_LABELS[scheduleModal.monitor.monitor_category]}`}
+          subtitle={`${scheduleModal.monitor.monitor_name} · ${CATEGORY_LABELS[scheduleModal.monitor.monitor_category] || "Display"}`}
           onClose={() => !saving && setScheduleModal(null)}
           className="scheduler-modal--form"
         >
