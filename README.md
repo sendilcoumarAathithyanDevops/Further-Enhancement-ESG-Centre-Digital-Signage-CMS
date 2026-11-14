@@ -39,7 +39,14 @@ DB_FALLBACK_SSL=false
 
 Create the local database and import `FYP CMS System Database.sql` into it before starting the backend. The backend first checks the primary, then the local SQL fallback, and uses its JSON file store only if neither SQL database is available. If it switches to the local database after startup, it stays on that database until the backend restarts.
 
-For an existing database, run `node Backend/migrations/add-display-power-schedules.js` from the project root to add the display power-scheduling table required by the backend.
+Before updating an existing database, back it up. From the project root, run these additive migrations to create tables required by project previews and the display power scheduler:
+
+```powershell
+node Backend/migrations/add-monitor-playlist-pages.js
+node Backend/migrations/add-display-power-schedules.js
+```
+
+They use the SQL connection in `Backend/.env` and are safe to re-run. Do not re-import `FYP CMS System Database.sql` over a database containing data; the dump includes `DROP TABLE` statements.
 
 The two SQL databases are **not automatically synchronized**. The local database must be populated and kept current separately; this connection failover alone does not replicate data or copy writes back to Railway. Keep all database passwords in the ignored `Backend/.env` file and never commit them.
 
