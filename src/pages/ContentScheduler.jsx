@@ -21,13 +21,59 @@ const CATEGORY_LABELS = {
   governance: "Governance",
 };
 
+const WEEKDAY_OPTIONS = [
+  { value: "monday", label: "Mon" },
+  { value: "tuesday", label: "Tue" },
+  { value: "wednesday", label: "Wed" },
+  { value: "thursday", label: "Thu" },
+  { value: "friday", label: "Fri" },
+  { value: "saturday", label: "Sat" },
+  { value: "sunday", label: "Sun" },
+];
+
 const EMPTY_FORM = {
   monitorId: "",
   projectId: "",
+  scheduleType: "once",
   startAt: "",
   endAt: "",
+  startDate: "",
+  startTime: "",
+  endTime: "",
+  repeatDays: ["monday", "tuesday", "wednesday", "thursday", "friday"],
+  timeZone: "UTC",
   notes: "",
 };
+
+function getBrowserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function parseScheduleRepeatDays(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatDateForTimeZone(value, timeZone) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value])
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
 
 function formatLocalInput(value) {
   const date = new Date(value);
@@ -44,16 +90,29 @@ function defaultForm() {
     ...EMPTY_FORM,
     startAt: formatLocalInput(start),
     endAt: formatLocalInput(end),
+    startDate: formatLocalInput(start).slice(0, 10),
+    startTime: formatLocalInput(start).slice(11, 16),
+    endTime: formatLocalInput(end).slice(11, 16),
+    timeZone: getBrowserTimeZone(),
   };
 }
 
-function formatDateTime(value) {
+function formatDateTime(value, timeZone) {
   const date = new Date(value);
   if (!value || Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
+    ...(timeZone ? { timeZone } : {}),
   }).format(date);
+}
+
+function formatRepeatDays(value) {
+  const days = parseScheduleRepeatDays(value);
+  return WEEKDAY_OPTIONS
+    .filter((day) => days.includes(day.value))
+    .map((day) => day.label)
+    .join(", ");
 }
 
 async function apiRequest(path, options = {}) {
@@ -164,11 +223,25 @@ function ContentScheduler() {
   const openEditModal = (schedule) => {
     setError("");
     setModalSchedule(schedule);
+    const repeatDays = parseScheduleRepeatDays(schedule.repeat_days);
+    const scheduleTimeZone = schedule.time_zone || getBrowserTimeZone();
     setForm({
       monitorId: String(schedule.monitor_id),
       projectId: String(schedule.project_id),
       startAt: formatLocalInput(schedule.start_at_iso),
       endAt: formatLocalInput(schedule.end_at_iso),
+      scheduleType: repeatDays.length ? "weekly" : "once",
+      startDate: repeatDays.length
+        ? formatDateForTimeZone(schedule.start_at_iso, scheduleTimeZone)
+        : formatLocalInput(schedule.start_at_iso).slice(0, 10),
+      startTime: schedule.repeat_start_time
+        ? String(schedule.repeat_start_time).slice(0, 5)
+        : formatLocalInput(schedule.start_at_iso).slice(11, 16),
+      endTime: schedule.repeat_end_time
+        ? String(schedule.repeat_end_time).slice(0, 5)
+        : formatLocalInput(schedule.end_at_iso).slice(11, 16),
+      repeatDays: repeatDays.length ? repeatDays : EMPTY_FORM.repeatDays,
+      timeZone: scheduleTimeZone,
       notes: schedule.notes || "",
     });
     setIsModalOpen(true);
@@ -180,11 +253,37 @@ function ContentScheduler() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const start = new Date(form.startAt);
-    const end = new Date(form.endAt);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      setError("The end time must be after the start time.");
-      return;
+    let schedulePayload;
+    if (form.scheduleType === "weekly") {
+      if (
+        !form.startDate ||
+        !form.startTime ||
+        !form.endTime ||
+        form.endTime <= form.startTime ||
+        form.repeatDays.length === 0
+      ) {
+        setError("Choose at least one weekday and an end time after the start time.");
+        return;
+      }
+      schedulePayload = {
+        scheduleType: "weekly",
+        startDate: form.startDate,
+        startTime: form.startTime,
+        endTime: form.endTime,
+        repeatDays: form.repeatDays,
+        timeZone: form.timeZone,
+      };
+    } else {
+      const start = new Date(form.startAt);
+      const end = new Date(form.endAt);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        setError("The end time must be after the start time.");
+        return;
+      }
+      schedulePayload = {
+        startAt: start.toISOString(),
+        endAt: end.toISOString(),
+      };
     }
 
     setSaving(true);
@@ -193,8 +292,7 @@ function ContentScheduler() {
       const payload = JSON.stringify({
         monitorId: Number(form.monitorId),
         projectId: Number(form.projectId),
-        startAt: start.toISOString(),
-        endAt: end.toISOString(),
+        ...schedulePayload,
         notes: form.notes.trim(),
       });
       await apiRequest(
@@ -218,7 +316,12 @@ function ContentScheduler() {
   };
 
   const cancelSchedule = async (schedule) => {
-    if (!window.confirm(`Cancel the schedule for "${schedule.project_name}"?`)) return;
+    const recurring = parseScheduleRepeatDays(schedule.repeat_days).length > 0;
+    const message =
+      recurring && schedule.status === "active"
+        ? `Stop repeating "${schedule.project_name}"? The current occurrence will finish, but no future occurrences will run.`
+        : `Cancel the schedule for "${schedule.project_name}"?`;
+    if (!window.confirm(message)) return;
     setError("");
     setNotice("");
     try {
@@ -372,13 +475,18 @@ function ContentScheduler() {
                     <td>
                       <strong>{schedule.project_name}</strong>
                       <small>{schedule.monitor_category ? CATEGORY_LABELS[schedule.monitor_category] : "Project"}</small>
+                      {parseScheduleRepeatDays(schedule.repeat_days).length > 0 && (
+                        <small>
+                          Weekly: {formatRepeatDays(schedule.repeat_days)} · {schedule.time_zone}
+                        </small>
+                      )}
                     </td>
                     <td>
                       <strong>{schedule.monitor_name}</strong>
                       <small>{schedule.location || "No location set"}</small>
                     </td>
-                    <td>{formatDateTime(schedule.start_at_iso)}</td>
-                    <td>{formatDateTime(schedule.end_at_iso)}</td>
+                    <td>{formatDateTime(schedule.start_at_iso, schedule.time_zone)}</td>
+                    <td>{formatDateTime(schedule.end_at_iso, schedule.time_zone)}</td>
                     <td>
                       <span className={`content-scheduler-status content-scheduler-status--${schedule.status}`}>
                         {schedule.status}
@@ -387,24 +495,30 @@ function ContentScheduler() {
                     <td>
                       <div className="content-scheduler-row-actions">
                         {schedule.status === "scheduled" && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => openEditModal(schedule)}
-                              aria-label={`Edit schedule for ${schedule.project_name}`}
-                              title="Edit schedule"
-                            >
-                              <FiEdit2 />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => cancelSchedule(schedule)}
-                              aria-label={`Cancel schedule for ${schedule.project_name}`}
-                              title="Cancel schedule"
-                            >
-                              <FiXCircle />
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(schedule)}
+                            aria-label={`Edit schedule for ${schedule.project_name}`}
+                            title="Edit schedule"
+                          >
+                            <FiEdit2 />
+                          </button>
+                        )}
+                        {(schedule.status === "scheduled" ||
+                          (schedule.status === "active" &&
+                            parseScheduleRepeatDays(schedule.repeat_days).length > 0)) && (
+                          <button
+                            type="button"
+                            onClick={() => cancelSchedule(schedule)}
+                            aria-label={
+                              schedule.status === "active"
+                                ? `Stop repeating schedule for ${schedule.project_name}`
+                                : `Cancel schedule for ${schedule.project_name}`
+                            }
+                            title={schedule.status === "active" ? "Stop repeating" : "Cancel schedule"}
+                          >
+                            <FiXCircle />
+                          </button>
                         )}
                         {schedule.status !== "active" && (
                           <button
@@ -496,26 +610,112 @@ function ContentScheduler() {
                   </small>
                 )}
               </label>
-              <div className="content-scheduler-form-grid">
-                <label>
-                  Starts
-                  <input
-                    type="datetime-local"
-                    required
-                    value={form.startAt}
-                    onChange={(event) => setForm({ ...form, startAt: event.target.value })}
-                  />
-                </label>
-                <label>
-                  Ends
-                  <input
-                    type="datetime-local"
-                    required
-                    value={form.endAt}
-                    onChange={(event) => setForm({ ...form, endAt: event.target.value })}
-                  />
-                </label>
-              </div>
+              <label className="content-scheduler-recurrence-toggle">
+                <input
+                  type="checkbox"
+                  checked={form.scheduleType === "weekly"}
+                  onChange={(event) => {
+                    const weekly = event.target.checked;
+                    setForm((current) => ({
+                      ...current,
+                      scheduleType: weekly ? "weekly" : "once",
+                      ...(weekly
+                        ? {
+                            startDate: current.startAt.slice(0, 10),
+                            startTime: current.startAt.slice(11, 16),
+                            endTime: current.endAt.slice(11, 16),
+                            timeZone: getBrowserTimeZone(),
+                          }
+                        : {}),
+                    }));
+                  }}
+                />
+                Repeat weekly
+              </label>
+              {form.scheduleType === "weekly" ? (
+                <>
+                  <label>
+                    First occurrence date
+                    <input
+                      type="date"
+                      required
+                      value={form.startDate}
+                      onChange={(event) => setForm({ ...form, startDate: event.target.value })}
+                    />
+                  </label>
+                  <div className="content-scheduler-form-grid">
+                    <label>
+                      Starts
+                      <input
+                        type="time"
+                        required
+                        value={form.startTime}
+                        onChange={(event) => setForm({ ...form, startTime: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Ends
+                      <input
+                        type="time"
+                        required
+                        value={form.endTime}
+                        onChange={(event) => setForm({ ...form, endTime: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <fieldset className="content-scheduler-weekdays">
+                    <legend>Repeat on</legend>
+                    <div>
+                      {WEEKDAY_OPTIONS.map((day) => {
+                        const selected = form.repeatDays.includes(day.value);
+                        return (
+                          <button
+                            key={day.value}
+                            type="button"
+                            aria-pressed={selected}
+                            className={selected ? "is-selected" : ""}
+                            onClick={() =>
+                              setForm({
+                                ...form,
+                                repeatDays: selected
+                                  ? form.repeatDays.filter((value) => value !== day.value)
+                                  : [...form.repeatDays, day.value],
+                              })
+                            }
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  <p className="content-scheduler-form-hint">
+                    Repeats every selected weekday with no end date. Times use {form.timeZone};
+                    choose the same-day end time after the start time.
+                  </p>
+                </>
+              ) : (
+                <div className="content-scheduler-form-grid">
+                  <label>
+                    Starts
+                    <input
+                      type="datetime-local"
+                      required
+                      value={form.startAt}
+                      onChange={(event) => setForm({ ...form, startAt: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Ends
+                    <input
+                      type="datetime-local"
+                      required
+                      value={form.endAt}
+                      onChange={(event) => setForm({ ...form, endAt: event.target.value })}
+                    />
+                  </label>
+                </div>
+              )}
               <label>
                 Notes <span className="content-scheduler-optional">(optional)</span>
                 <textarea
@@ -526,9 +726,11 @@ function ContentScheduler() {
                   placeholder="Add a note for administrators"
                 />
               </label>
-              <p className="content-scheduler-form-hint">
-                The project category must match the selected display. Times use your local timezone.
-              </p>
+              {form.scheduleType !== "weekly" && (
+                <p className="content-scheduler-form-hint">
+                  The project category must match the selected display. Times use your local timezone.
+                </p>
+              )}
               <footer>
                 <button
                   type="button"

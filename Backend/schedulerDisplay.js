@@ -1,6 +1,14 @@
 const crypto = require("crypto");
 const dgram = require("dgram");
 const os = require("os");
+const {
+  firstWeeklyOccurrence,
+  isValidTimeZone,
+  nextWeeklyOccurrenceAfter,
+  normalizeRepeatDays,
+  parseRepeatDays,
+  schedulesOverlap,
+} = require("./scheduleRecurrence");
 
 const VALID_CATEGORIES = new Set(["environmental", "social", "governance"]);
 const VALID_SCHEDULE_STATUSES = new Set([
@@ -858,7 +866,8 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const [rows] = await db.query(
         `SELECT ms.schedule_id, ms.monitor_id, ms.project_id, ms.created_by,
-                ms.status, ms.notes,
+                ms.status, ms.notes, ms.repeat_days, ms.time_zone,
+                ms.repeat_start_time, ms.repeat_end_time,
                 ${isoExpression("ms.start_at", "start_at_iso")},
                 ${isoExpression("ms.end_at", "end_at_iso")},
                 ${isoExpression("ms.created_at", "created_at_iso")},
@@ -887,20 +896,86 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
   async function validateScheduleInput(connection, body, excludedScheduleId = null) {
     const monitorId = positiveInteger(body.monitorId);
     const projectId = positiveInteger(body.projectId);
-    const startAt = toSqlUtc(body.startAt);
-    const endAt = toSqlUtc(body.endAt);
     const notes = cleanText(body.notes, 500) || null;
+    const isWeekly = body.scheduleType === "weekly";
+    let startAt;
+    let endAt;
+    let repeatDays = null;
+    let timeZone = null;
+    let repeatStartTime = null;
+    let repeatEndTime = null;
 
-    if (!monitorId || !projectId || !startAt || !endAt) {
+    if (!monitorId || !projectId) {
       const error = new Error("Display, project, start time and end time are required.");
       error.statusCode = 400;
       throw error;
     }
 
-    if (new Date(body.endAt).getTime() <= new Date(body.startAt).getTime()) {
-      const error = new Error("The end time must be after the start time.");
-      error.statusCode = 400;
-      throw error;
+    if (isWeekly) {
+      repeatDays = normalizeRepeatDays(body.repeatDays);
+      timeZone = cleanText(body.timeZone, 64);
+      repeatStartTime = cleanText(body.startTime, 8);
+      repeatEndTime = cleanText(body.endTime, 8);
+      const startDate = cleanText(body.startDate, 10);
+      const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
+      const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(startDate);
+      const parsedDate = dateParts
+        ? new Date(
+            Date.UTC(
+              Number(dateParts[1]),
+              Number(dateParts[2]) - 1,
+              Number(dateParts[3])
+            )
+          )
+        : null;
+      const hasValidDate =
+        parsedDate &&
+        parsedDate.getUTCFullYear() === Number(dateParts[1]) &&
+        parsedDate.getUTCMonth() + 1 === Number(dateParts[2]) &&
+        parsedDate.getUTCDate() === Number(dateParts[3]);
+
+      if (
+        !repeatDays ||
+        !hasValidDate ||
+        !timePattern.test(repeatStartTime) ||
+        !timePattern.test(repeatEndTime) ||
+        repeatEndTime <= repeatStartTime ||
+        !isValidTimeZone(timeZone)
+      ) {
+        const error = new Error(
+          "Choose at least one weekday, a valid date and time range, and a valid timezone."
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const occurrence = firstWeeklyOccurrence(
+        startDate,
+        repeatDays,
+        timeZone,
+        repeatStartTime,
+        repeatEndTime
+      );
+      if (!occurrence) {
+        const error = new Error("The selected local start time does not exist.");
+        error.statusCode = 400;
+        throw error;
+      }
+      startAt = toSqlUtc(occurrence.startAt);
+      endAt = toSqlUtc(occurrence.endAt);
+    } else {
+      startAt = toSqlUtc(body.startAt);
+      endAt = toSqlUtc(body.endAt);
+      if (!startAt || !endAt) {
+        const error = new Error("Display, project, start time and end time are required.");
+        error.statusCode = 400;
+        throw error;
+      }
+      if (new Date(body.endAt).getTime() <= new Date(body.startAt).getTime()) {
+        const error = new Error("The end time must be after the start time.");
+        error.statusCode = 400;
+        throw error;
+      }
     }
 
     const [monitorRows] = await connection.query(
@@ -936,30 +1011,46 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       throw error;
     }
 
-    const overlapParameters = [monitorId, endAt, startAt];
-    let excludedClause = "";
-    if (excludedScheduleId) {
-      excludedClause = " AND schedule_id <> ?";
-      overlapParameters.push(excludedScheduleId);
-    }
-
-    const [overlapRows] = await connection.query(
-      `SELECT schedule_id
+    const [existingSchedules] = await connection.query(
+      `SELECT schedule_id, status, repeat_days, time_zone,
+              repeat_start_time, repeat_end_time,
+              ${isoExpression("start_at", "start_at_iso")},
+              ${isoExpression("end_at", "end_at_iso")}
        FROM monitor_schedules
-       WHERE monitor_id = ?
-         AND status IN ('scheduled', 'active')
-         AND start_at < ?
-         AND end_at > ?${excludedClause}
-       LIMIT 1`,
-      overlapParameters
+       WHERE monitor_id = ?`,
+      [monitorId]
     );
-    if (overlapRows.length > 0) {
+    const candidate = {
+      startAt,
+      endAt,
+      repeatDays,
+      timeZone,
+      startTime: repeatStartTime,
+      endTime: repeatEndTime,
+    };
+    const hasOverlap = existingSchedules.some(
+      (schedule) =>
+        schedule.schedule_id !== excludedScheduleId &&
+        ["scheduled", "active"].includes(schedule.status) &&
+        schedulesOverlap(candidate, schedule)
+    );
+    if (hasOverlap) {
       const error = new Error("This display already has an overlapping schedule.");
       error.statusCode = 409;
       throw error;
     }
 
-    return { monitorId, projectId, startAt, endAt, notes };
+    return {
+      monitorId,
+      projectId,
+      startAt,
+      endAt,
+      notes,
+      repeatDays,
+      timeZone,
+      repeatStartTime,
+      repeatEndTime,
+    };
   }
 
   app.post("/api/admin/schedules", requireAdmin, async (req, res) => {
@@ -970,8 +1061,9 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
 
       const [result] = await connection.query(
         `INSERT INTO monitor_schedules
-         (monitor_id, project_id, created_by, start_at, end_at, status, notes)
-         VALUES (?, ?, ?, ?, ?, 'scheduled', ?)`,
+         (monitor_id, project_id, created_by, start_at, end_at, status, notes,
+          repeat_days, time_zone, repeat_start_time, repeat_end_time)
+         VALUES (?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?)`,
         [
           input.monitorId,
           input.projectId,
@@ -979,6 +1071,10 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           input.startAt,
           input.endAt,
           input.notes,
+          input.repeatDays ? JSON.stringify(input.repeatDays) : null,
+          input.timeZone,
+          input.repeatStartTime,
+          input.repeatEndTime,
         ]
       );
       await connection.commit();
@@ -1034,7 +1130,8 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       const input = await validateScheduleInput(connection, req.body, scheduleId);
       await connection.query(
         `UPDATE monitor_schedules
-         SET monitor_id = ?, project_id = ?, start_at = ?, end_at = ?, notes = ?
+         SET monitor_id = ?, project_id = ?, start_at = ?, end_at = ?, notes = ?,
+             repeat_days = ?, time_zone = ?, repeat_start_time = ?, repeat_end_time = ?
          WHERE schedule_id = ?`,
         [
           input.monitorId,
@@ -1042,6 +1139,10 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           input.startAt,
           input.endAt,
           input.notes,
+          input.repeatDays ? JSON.stringify(input.repeatDays) : null,
+          input.timeZone,
+          input.repeatStartTime,
+          input.repeatEndTime,
           scheduleId,
         ]
       );
@@ -1071,20 +1172,60 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       }
 
       try {
-        const [result] = await db.query(
-          `UPDATE monitor_schedules
-           SET status = 'cancelled'
-           WHERE schedule_id = ? AND status = 'scheduled'`,
+        const [scheduleRows] = await db.query(
+          `SELECT status, repeat_days FROM monitor_schedules
+           WHERE schedule_id = ? LIMIT 1`,
           [scheduleId]
         );
-        if (result.affectedRows === 0) {
+        if (scheduleRows.length === 0) {
           return res.status(409).json({
             success: false,
-            message: "Only an upcoming schedule can be cancelled.",
+            message: "The schedule cannot be cancelled.",
+          });
+        }
+        const schedule = scheduleRows[0];
+        const isRecurring = Boolean(parseRepeatDays(schedule.repeat_days));
+        if (schedule.status === "active" && isRecurring) {
+          const [result] = await db.query(
+            `UPDATE monitor_schedules
+             SET repeat_days = NULL, time_zone = NULL,
+                 repeat_start_time = NULL, repeat_end_time = NULL
+             WHERE schedule_id = ? AND status = 'active' AND repeat_days IS NOT NULL`,
+            [scheduleId]
+          );
+          if (result.affectedRows === 0) {
+            return res.status(409).json({
+              success: false,
+              message: "The recurring schedule has already changed.",
+            });
+          }
+        } else if (schedule.status === "scheduled") {
+          const [result] = await db.query(
+            `UPDATE monitor_schedules
+             SET status = 'cancelled'
+             WHERE schedule_id = ? AND status = 'scheduled'`,
+            [scheduleId]
+          );
+          if (result.affectedRows === 0) {
+            return res.status(409).json({
+              success: false,
+              message: "Only an upcoming schedule can be cancelled.",
+            });
+          }
+        } else {
+          return res.status(409).json({
+            success: false,
+            message: "Only upcoming schedules or active recurring schedules can be cancelled.",
           });
         }
         io.emit("scheduler-data-updated", { scheduleId });
-        return res.json({ success: true, message: "Schedule cancelled." });
+        return res.json({
+          success: true,
+          message:
+            schedule.status === "active"
+              ? "Recurrence stopped. The current occurrence will finish."
+              : "Schedule cancelled.",
+        });
       } catch (error) {
         console.error("Cancel schedule error:", error);
         return res.status(500).json({ success: false, message: "Unable to cancel the schedule." });
@@ -1452,14 +1593,54 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
   );
 
   async function activateSchedules() {
-    const now = toSqlUtc(new Date());
+    const nowDate = new Date();
+    const now = toSqlUtc(nowDate);
     try {
       await db.query(
         `UPDATE monitor_schedules
          SET status = 'completed'
-         WHERE status = 'active' AND end_at <= ?`,
+         WHERE status = 'active' AND end_at <= ? AND repeat_days IS NULL`,
         [now]
       );
+
+      const [expiredRecurringRows] = await db.query(
+        `SELECT schedule_id, status, repeat_days, time_zone,
+                repeat_start_time, repeat_end_time, start_at, end_at,
+                ${isoExpression("start_at", "start_at_iso")},
+                ${isoExpression("end_at", "end_at_iso")}
+         FROM monitor_schedules
+         WHERE repeat_days IS NOT NULL
+           AND status IN ('scheduled', 'active')
+           AND end_at <= ?`,
+        [now]
+      );
+      for (const expired of expiredRecurringRows) {
+        const nextOccurrence = nextWeeklyOccurrenceAfter(expired, nowDate);
+        if (!nextOccurrence) {
+          console.error(
+            `Unable to find the next occurrence for recurring schedule ${expired.schedule_id}.`
+          );
+          continue;
+        }
+
+        const [result] = await db.query(
+          `UPDATE monitor_schedules
+           SET start_at = ?, end_at = ?, status = 'scheduled'
+           WHERE schedule_id = ? AND repeat_days IS NOT NULL
+             AND status IN ('scheduled', 'active') AND end_at <= ?`,
+          [
+            toSqlUtc(nextOccurrence.startAt),
+            toSqlUtc(nextOccurrence.endAt),
+            expired.schedule_id,
+            now,
+          ]
+        );
+        if (result.affectedRows > 0) {
+          io.emit("scheduler-data-updated", {
+            scheduleId: expired.schedule_id,
+          });
+        }
+      }
 
       const [dueRows] = await db.query(
         `SELECT schedule_id, monitor_id, project_id
@@ -1490,7 +1671,8 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           await connection.query(
             `UPDATE monitor_schedules
              SET status = 'completed'
-             WHERE monitor_id = ? AND status = 'active'`,
+             WHERE monitor_id = ? AND status = 'active'
+               AND repeat_days IS NULL`,
             [due.monitor_id]
           );
           await connection.query(

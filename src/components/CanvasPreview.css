@@ -153,3 +153,8 @@
   background: #faf5ff;
   color: #9333ea;
 }
+
+.category-preview-badge.default {
+  background: #eef0f2;
+  color: #52606d;
+}
