@@ -124,6 +124,7 @@ function loadData() {
     data = seedFromSqlDump();
     fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
   }
+  normalizeFallbackData();
 }
 
 function saveData() {
@@ -131,16 +132,163 @@ function saveData() {
   fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
 }
 
+function normalizeFallbackData() {
+  let changed = false;
+  data.canvas_templates ||= [];
+
+  const projects = data.projects || [];
+  const missingIdProjects = projects.filter((project) => {
+    const projectId = Number(project.project_id);
+    return !Number.isInteger(projectId) || projectId <= 0;
+  });
+  const knownProjectIds = new Set(
+    projects
+      .map((project) => Number(project.project_id))
+      .filter((projectId) => Number.isInteger(projectId) && projectId > 0)
+  );
+  const orphanCanvasProjectIds = [
+    ...new Set(
+      (data.canvases || [])
+        .map((canvas) => Number(canvas.project_id))
+        .filter(
+          (projectId) =>
+            Number.isInteger(projectId) &&
+            projectId > 0 &&
+            !knownProjectIds.has(projectId)
+        )
+    ),
+  ].sort((a, b) => a - b);
+  const inferredProjectGroups = [];
+  let nextProjectId =
+    Math.max(0, ...knownProjectIds, ...orphanCanvasProjectIds) + 1;
+
+  for (const project of projects) {
+    const projectId = Number(project.project_id);
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      const inferredProjectId = orphanCanvasProjectIds.shift();
+      project.project_id = inferredProjectId ?? nextProjectId++;
+      if (inferredProjectId != null) {
+        inferredProjectGroups.push({
+          projectId: inferredProjectId,
+          pages: (data.canvases || [])
+            .filter(
+              (canvas) =>
+                Number(canvas.project_id) === inferredProjectId &&
+                canvas.canvas_id == null
+            )
+            .map((canvas) => [
+              canvas.name,
+              canvas.canvas_order,
+              canvas.width,
+              canvas.height,
+              canvas.background_color,
+            ])
+            .sort((a, b) => Number(a[1]) - Number(b[1])),
+        });
+      }
+      knownProjectIds.add(project.project_id);
+      changed = true;
+    }
+
+    if (
+      project.is_template === "FALSE" ||
+      project.is_template === false ||
+      project.is_template == null
+    ) {
+      if (project.is_template !== 0) changed = true;
+      project.is_template = 0;
+    } else if (project.is_template === "TRUE" || project.is_template === true) {
+      if (project.is_template !== 1) changed = true;
+      project.is_template = 1;
+    }
+  }
+
+  const unlinkedLegacyProjects = missingIdProjects.filter(
+    (project) =>
+      !inferredProjectGroups.some((group) => group.projectId === project.project_id)
+  );
+  const pagesByLegacyProject = new Map();
+  for (const canvas of data.canvases || []) {
+    if (canvas.canvas_id != null) continue;
+    const projectId = Number(canvas.project_id);
+    const pages = pagesByLegacyProject.get(projectId) || [];
+    pages.push([
+      canvas.name,
+      canvas.canvas_order,
+      canvas.width,
+      canvas.height,
+      canvas.background_color,
+    ]);
+    pagesByLegacyProject.set(projectId, pages);
+  }
+
+  const reassignedCanvasGroups = new Set();
+  for (const project of unlinkedLegacyProjects) {
+    const duplicateGroup = [...pagesByLegacyProject.entries()].find(
+      ([canvasProjectId, pages]) =>
+        knownProjectIds.has(canvasProjectId) &&
+        !inferredProjectGroups.some((group) => group.projectId === canvasProjectId) &&
+        !reassignedCanvasGroups.has(canvasProjectId) &&
+        inferredProjectGroups.some(
+          (group) =>
+            group.pages.length > 0 &&
+            JSON.stringify([...pages].sort((a, b) => Number(a[1]) - Number(b[1]))) ===
+              JSON.stringify(group.pages)
+        )
+    );
+
+    if (!duplicateGroup) continue;
+
+    const [canvasProjectId] = duplicateGroup;
+    for (const canvas of data.canvases || []) {
+      if (
+        canvas.canvas_id == null &&
+        Number(canvas.project_id) === canvasProjectId
+      ) {
+        canvas.project_id = project.project_id;
+      }
+    }
+    reassignedCanvasGroups.add(canvasProjectId);
+    changed = true;
+  }
+
+  const nextCanvasId =
+    Math.max(
+      0,
+      ...(data.canvases || [])
+        .map((canvas) => Number(canvas.canvas_id))
+        .filter((canvasId) => Number.isInteger(canvasId) && canvasId > 0)
+    ) + 1;
+  let canvasId = nextCanvasId;
+  for (const canvas of data.canvases || []) {
+    if (canvas.canvas_id == null) {
+      canvas.canvas_id = canvasId++;
+      changed = true;
+    }
+  }
+
+  if (changed) saveData();
+}
+
 function unalias(column) {
   return String(column).split(".").pop().replace(/[`"]/g, "");
 }
 
 function compareWhere(condition, row, params) {
-  const match = /^\s*([A-Za-z_][\w.]*)\s*(=|!=|<>|>=|<=|>|<)\s*(?:\?|NULL|'([^']*)')\s*$/i.exec(condition);
+  const match = /^\s*([A-Za-z_][\w.]*)\s*(=|!=|<>|>=|<=|>|<)\s*(\?|NULL|TRUE|FALSE|'([^']*)')\s*$/i.exec(condition);
   if (!match) return true;
   const column = unalias(match[1]);
   const operator = match[2];
-  const expected = match[3] !== undefined ? match[3] : params.shift();
+  const literal = match[3];
+  const expected = literal === "?"
+    ? params.shift()
+    : /^NULL$/i.test(literal)
+      ? null
+      : /^TRUE$/i.test(literal)
+        ? 1
+        : /^FALSE$/i.test(literal)
+          ? 0
+          : match[4];
   const actual = row[column];
   const equal = String(actual ?? "") === String(expected ?? "");
   return operator === "=" ? equal : operator === "!=" || operator === "<>" ? !equal : actual != null && (
@@ -152,11 +300,12 @@ function compareWhere(condition, row, params) {
 }
 
 function matchesWhere(where, row, params) {
-  return where.split(/\s+OR\s+/i).some((orGroup) =>
-    orGroup.split(/\s+AND\s+/i).every((condition) =>
-      compareWhere(condition, row, [...params])
-    )
-  );
+  return where.split(/\s+OR\s+/i).some((orGroup) => {
+    const remainingParams = [...params];
+    return orGroup.split(/\s+AND\s+/i).every((condition) =>
+      compareWhere(condition, row, remainingParams)
+    );
+  });
 }
 
 function selectedRows(sql, params) {
@@ -179,15 +328,63 @@ function selectedRows(sql, params) {
 }
 
 function projectSelect(sql, rows) {
-  if (/\bCOUNT\s*\(\s*\*\s*\)/i.test(sql)) {
-    return [{ count: rows.length }];
-  }
   const select = /SELECT\s+(.*?)\s+FROM\s/is.exec(sql)?.[1] || "*";
   if (select.trim() === "*") return rows;
+
+  const expressions = splitSqlValues(select);
+  const aggregateResult = {};
+  let hasAggregate = false;
+
+  for (const expression of expressions) {
+    const alias = /\s+AS\s+`?([A-Za-z_]\w*)`?\s*$/i.exec(expression);
+    const valueExpression = alias
+      ? expression.slice(0, alias.index).trim()
+      : expression.trim();
+    const coalesce = /^COALESCE\s*\(\s*(SUM\s*\([\s\S]*\))\s*,\s*0\s*\)$/i.exec(
+      valueExpression
+    );
+    const aggregateExpression = coalesce ? coalesce[1] : valueExpression;
+    const count = /^COUNT\s*\(\s*(\*|[A-Za-z_][\w.]*)\s*\)$/i.exec(
+      aggregateExpression
+    );
+    const sum = /^SUM\s*\(\s*([A-Za-z_][\w.]*)\s*(=|!=|<>|>=|<=|>|<)\s*(?:'([^']*)'|"([^"]*)"|(-?\d+(?:\.\d+)?))\s*\)$/i.exec(
+      aggregateExpression
+    );
+
+    if (count) {
+      hasAggregate = true;
+      const column = unalias(count[1]);
+      aggregateResult[alias?.[1] || "count"] =
+        column === "*" ? rows.length : rows.filter((row) => row[column] != null).length;
+    } else if (sum) {
+      hasAggregate = true;
+      const column = unalias(sum[1]);
+      const operator = sum[2];
+      const rawExpected = sum[3] ?? sum[4] ?? sum[5];
+      const expected = sum[5] === undefined ? rawExpected : Number(rawExpected);
+      aggregateResult[alias?.[1] || "sum"] = rows.filter((row) => {
+        const actual = row[column];
+        if (actual == null) return false;
+        const comparableActual =
+          typeof expected === "number" ? Number(actual) : String(actual);
+        return (
+          (operator === "=" && comparableActual === expected) ||
+          ((operator === "!=" || operator === "<>") && comparableActual !== expected) ||
+          (operator === ">" && comparableActual > expected) ||
+          (operator === "<" && comparableActual < expected) ||
+          (operator === ">=" && comparableActual >= expected) ||
+          (operator === "<=" && comparableActual <= expected)
+        );
+      }).length;
+    }
+  }
+
+  if (hasAggregate) return [aggregateResult];
+
   return rows.map((row) => {
     const projected = {};
-    for (const expression of select.split(/,(?![^']*')/)) {
-      const alias = /\s+AS\s+`?([A-Za-z_]\w*)`?\s*$/i.exec(expression.trim());
+    for (const expression of expressions) {
+      const alias = /\s+AS\s+`?([A-Za-z_]\w*)`?\s*$/i.exec(expression);
       let column = expression.trim();
       if (alias) column = column.slice(0, alias.index).trim();
       column = unalias(column);
@@ -220,10 +417,49 @@ async function query(sql, params = []) {
         row[column] = value;
       });
       if (!Object.keys(row).length) continue;
+      const autoIncrementColumns = {
+        canvas_templates: "template_id",
+        projects: "project_id",
+        canvases: "canvas_id",
+        components: "component_id",
+        project_collaborators: "id",
+      };
+      const autoIncrementColumn = autoIncrementColumns[table];
+      if (autoIncrementColumn) {
+        row[autoIncrementColumn] =
+          row[autoIncrementColumn] ??
+          Math.max(0, ...data[table].map((record) => Number(record[autoIncrementColumn]) || 0)) + 1;
+      }
+      if (table === "canvas_templates") {
+        row.is_active ??= 1;
+        row.created_at ??= new Date().toISOString();
+        row.updated_at ??= row.created_at;
+      }
+      if (table === "projects") {
+        row.is_template = row.is_template === true || row.is_template === 1 ? 1 : 0;
+        row.created_from_template_id ??= null;
+        row.created_at ??= new Date().toISOString();
+        row.updated_at ??= row.created_at;
+      }
+      if (table === "canvases") {
+        row.duration_seconds ??= 10;
+        row.created_at ??= new Date().toISOString();
+        row.updated_at ??= row.created_at;
+      }
+      if (table === "components") {
+        row.created_at ??= new Date().toISOString();
+        row.updated_at ??= row.created_at;
+      }
       data[table].push(row);
-      if (row.id != null && typeof row.id === "number") firstInsertId = row.id;
-      else if (row[`${table}_id`] != null) firstInsertId = row[`${table}_id`];
-      else firstInsertId = data[table].length;
+      if (row.id != null && typeof row.id === "number") {
+        firstInsertId = row.id;
+      } else if (autoIncrementColumn && row[autoIncrementColumn] != null) {
+        firstInsertId = row[autoIncrementColumn];
+      } else if (row[`${table}_id`] != null) {
+        firstInsertId = row[`${table}_id`];
+      } else {
+        firstInsertId = data[table].length;
+      }
     }
     saveData();
     return [{ insertId: firstInsertId, affectedRows: values.length }, []];
@@ -232,16 +468,19 @@ async function query(sql, params = []) {
   const update = /^UPDATE\s+`?([A-Za-z_]\w*)`?\s+SET\s+([\s\S]*?)(?:\s+WHERE\s+([\s\S]*))?$/is.exec(normalized);
   if (update) {
     const table = data[update[1]] || [];
-    const assignments = update[2].split(",");
+    const updateParams = [...params];
+    const assignments = update[2].split(",").flatMap((assignment) => {
+      const match = /^\s*`?([A-Za-z_]\w*)`?\s*=/.exec(assignment);
+      if (!match) return [];
+      const value = /\?\s*$/.test(assignment)
+        ? updateParams.shift()
+        : parseSqlValue(assignment.slice(assignment.indexOf("=") + 1).trim());
+      return [[match[1], value]];
+    });
     let affectedRows = 0;
     for (const row of table) {
-      if (update[3] && !matchesWhere(update[3], row, params)) continue;
-      for (const assignment of assignments) {
-        const match = /^\s*`?([A-Za-z_]\w*)`?\s*=/.exec(assignment);
-        if (!match) continue;
-        const value = /\?\s*$/.test(assignment) ? params.shift() : parseSqlValue(assignment.split("=")[1].trim());
-        row[match[1]] = value;
-      }
+      if (update[3] && !matchesWhere(update[3], row, updateParams)) continue;
+      for (const [column, value] of assignments) row[column] = value;
       affectedRows += 1;
     }
     saveData();

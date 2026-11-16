@@ -365,6 +365,7 @@
   border: 1px solid #e8ece9;
   border-radius: 14px;
   transition: .2s;
+  cursor: pointer;
 }
 
 .dashboard-record:hover {
@@ -383,9 +384,21 @@
   margin-bottom: 2px;
 }
 
-.dashboard-record-title strong {
+.dashboard-record-title strong,
+.dashboard-record-project-link {
   font-size: 17px;
   color: #1c2c22;
+}
+
+.dashboard-record-project-link {
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.dashboard-record-project-link:hover,
+.dashboard-record-project-link:focus-visible {
+  color: #35724d;
+  text-decoration: underline;
 }
 
 .dashboard-record .dashboard-record-main p {

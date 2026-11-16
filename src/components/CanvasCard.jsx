@@ -15,7 +15,15 @@ function formatUpdatedDate(value) {
   }).format(date);
 }
 
-function CanvasCard({ project, onEdit, onPublish, onDelete }) {
+function CanvasCard({
+  project,
+  onView,
+  onEdit,
+  onPublish,
+  onDelete,
+  onShare,
+  publishing = false,
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   const description = project.description || "No description provided.";
   const shouldShowToggle = useMemo(() => description.length > 140, [description]);
@@ -34,7 +42,16 @@ function CanvasCard({ project, onEdit, onPublish, onDelete }) {
 
       <div className="saved-canvas-card__body">
         <div className="saved-canvas-card__title-row">
-          <h2>{project.name}</h2>
+          <h2>
+            <button
+              type="button"
+              className="saved-canvas-card__title-button"
+              onClick={() => onView?.(project.projectId)}
+              aria-label={`View ${project.name}`}
+            >
+              {project.name}
+            </button>
+          </h2>
           <span className={`category-pill category-pill--${project.category}`}>
             {project.category}
           </span>
@@ -65,6 +82,22 @@ function CanvasCard({ project, onEdit, onPublish, onDelete }) {
         <div className="saved-canvas-card__actions">
           <button
             type="button"
+            className="saved-canvas-card__view"
+            onClick={() => onView?.(project.projectId)}
+          >
+            View
+          </button>
+
+          <button
+            type="button"
+            className="saved-canvas-card__share"
+            onClick={() => onShare?.(project.projectId)}
+          >
+            Share
+          </button>
+
+          <button
+            type="button"
             className="saved-canvas-card__edit"
             onClick={() => onEdit(project.projectId)}
             disabled={project.status === "published"}
@@ -76,8 +109,15 @@ function CanvasCard({ project, onEdit, onPublish, onDelete }) {
             type="button"
             className="saved-canvas-card__publish"
             onClick={() => onPublish?.(project.projectId)}
+            disabled={publishing}
           >
-            {project.status === "published" ? "Unpublish" : "Publish"}
+            {publishing
+              ? project.status === "published"
+                ? "Unpublishing…"
+                : "Publishing…"
+              : project.status === "published"
+                ? "Unpublish"
+                : "Publish"}
           </button>
 
           {/* DELETE BUTTON */}

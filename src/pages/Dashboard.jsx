@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import "./Dashboard.css";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -11,6 +12,7 @@ ChartJS.register(
 );
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [username, setUsername] = useState("");
 
@@ -364,13 +366,25 @@ function Dashboard() {
               <article
                 className="dashboard-record"
                 key={project.project_id || project.projectId}
+                onDoubleClick={() =>
+                  navigate(
+                    `/canvas/view/${project.projectId || project.project_id}`,
+                    { state: { from: "/dashboard" } }
+                  )
+                }
               >
 
                 <div className="dashboard-record-main">
 
                   <div className="dashboard-record-title">
 
-                    <strong>{project.name}</strong>
+                    <Link
+                      className="dashboard-record-project-link"
+                      to={`/canvas/view/${project.projectId || project.project_id}`}
+                      state={{ from: "/dashboard" }}
+                    >
+                      {project.name}
+                    </Link>
 
                     <span
                       className={`dashboard-status dashboard-status--${project.status?.toLowerCase()}`}

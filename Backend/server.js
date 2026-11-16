@@ -1211,13 +1211,13 @@ app.post("/ai-support/chat", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.OLLAMA_SUPPORT_MODEL || "bonsai-2",
+        model: process.env.OLLAMA_SUPPORT_MODEL || "llama3.2:3b",
         stream: false,
         messages: [
           {
             role: "system",
             content:
-              "You are the support assistant for the CMS content management system. Give concise, helpful guidance for producers and administrators. Do not claim to perform actions that require account access.",
+              "You are the support assistant for the CMS content management system. Give concise, helpful guidance for producers and administrators. Do not claim to perform actions that require account access. If the user asks how to create, make, or generate a template, do not give generic instructions for manually creating one in the CMS. Tell them AI Support can build it, ask what kind of template they want, and offer Environmental project, Community or social impact, Governance or policy, Event announcement, or Video presentation.",
           },
           ...validMessages,
         ],
@@ -2477,6 +2477,100 @@ app.get("/api/knowledge-base", requireAuth, async (req, res) => {
   }
 });
 
+app.put(
+  "/api/knowledge-base/:id",
+  requireAuth,
+  createUploadMiddleware("documents", "file", false),
+  async (req, res) => {
+    const userId = req.session.user.user_id;
+    const uploadedFilePath = req.file
+      ? getUploadedPublicPath("documents", userId, req.file)
+      : null;
+
+    try {
+      const articleId = req.params.id;
+      const title = typeof req.body.title === "string" ? req.body.title.trim() : "";
+      const content = typeof req.body.content === "string" ? req.body.content.trim() : "";
+      const category = typeof req.body.category === "string" ? req.body.category.trim() : "";
+
+      if (!title || title.length > 200) {
+        if (uploadedFilePath) await removeUploadIfUnreferenced(uploadedFilePath);
+        return res.status(400).json({
+          success: false,
+          message: "A title of 1 to 200 characters is required.",
+        });
+      }
+
+      if (!["general", ...VALID_CATEGORIES].includes(category)) {
+        if (uploadedFilePath) await removeUploadIfUnreferenced(uploadedFilePath);
+        return res.status(400).json({
+          success: false,
+          message: "Please select a valid category.",
+        });
+      }
+
+      const [rows] = await db.query(
+        `SELECT
+           file_path AS filePath,
+           file_type AS fileType,
+           file_size AS fileSize
+         FROM knowledge_base
+         WHERE article_id = ? AND user_id = ?
+         LIMIT 1`,
+        [articleId, userId]
+      );
+
+      if (rows.length === 0) {
+        if (uploadedFilePath) await removeUploadIfUnreferenced(uploadedFilePath);
+        return res.status(404).json({ success: false, message: "Article not found." });
+      }
+
+      const currentFilePath = rows[0].filePath;
+      const clearFile = req.body.clearFile === "true";
+      const filePath = uploadedFilePath || (clearFile ? null : currentFilePath);
+      const fileType = req.file
+        ? (req.file.mimetype.startsWith("image/") ? "image" : "file")
+        : (clearFile ? null : rows[0].fileType);
+      const fileSize = req.file ? req.file.size : (clearFile ? null : rows[0].fileSize);
+
+      await db.query(
+        `UPDATE knowledge_base
+         SET title = ?,
+             content = ?,
+             category = ?,
+             updated_at = NOW(),
+             file_path = ?,
+             file_type = ?,
+             file_size = ?
+         WHERE article_id = ? AND user_id = ?`,
+        [
+          title,
+          content,
+          category,
+          filePath,
+          fileType,
+          fileSize,
+          articleId,
+          userId,
+        ]
+      );
+
+      if ((uploadedFilePath || clearFile) && currentFilePath && currentFilePath !== filePath) {
+        await removeUploadIfUnreferenced(currentFilePath);
+      }
+
+      return res.json({ success: true, message: "Article updated." });
+    } catch (error) {
+      if (uploadedFilePath) await removeUploadIfUnreferenced(uploadedFilePath);
+      console.error("Knowledge base update error:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.sqlMessage || "Unable to update the knowledge base article.",
+      });
+    }
+  }
+);
+
 app.delete(
   "/api/knowledge-base/:id",
   requireAuth,
@@ -2538,6 +2632,93 @@ app.delete(
 app.get("/api/canvases", requireAuth, async (req, res) => {
   try {
     const userId = req.session.user.user_id;
+
+    if (db.getStatus().source === "fallback") {
+      const [[projects], [collaborators], [canvases], [users]] = await Promise.all([
+        db.query(
+          `SELECT project_id, user_id, name, description, category, status, is_template, updated_at
+           FROM projects`
+        ),
+        db.query(
+          `SELECT project_id, role
+           FROM project_collaborators
+           WHERE user_id = ?`,
+          [userId]
+        ),
+        db.query(
+          `SELECT canvas_id, project_id, name, canvas_order, width, height,
+                  background_color, background_image_path
+           FROM canvases
+           ORDER BY canvas_order ASC, canvas_id ASC`
+        ),
+        db.query(`SELECT user_id, username FROM users`),
+      ]);
+
+      const userById = new Map(users.map((user) => [user.user_id, user.username]));
+      const collaboratorByProjectId = new Map(
+        collaborators.map((collaborator) => [
+          collaborator.project_id,
+          collaborator.role,
+        ])
+      );
+      const responseProjects = [];
+
+      for (const project of projects) {
+        if (project.is_template === 1 || project.is_template === true) continue;
+
+        const isOwner = project.user_id === userId;
+        const collaboratorRole = collaboratorByProjectId.get(project.project_id);
+        if (!isOwner && !collaboratorRole) continue;
+
+        const projectCanvases = canvases.filter(
+          (canvas) => canvas.project_id === project.project_id
+        );
+        const previewCanvas = projectCanvases[0];
+        let previewPage = null;
+
+        if (previewCanvas) {
+          const [componentRows] = await db.query(
+            `SELECT component_id, canvas_id, type, content_text, file_path, external_url,
+                    position_x, position_y, width, height, rotation, layer_order, style_json
+             FROM components
+             WHERE canvas_id = ?
+             ORDER BY layer_order ASC, component_id ASC`,
+            [previewCanvas.canvas_id]
+          );
+          const {
+            componentsByCanvasId,
+            backgroundSettingsByCanvasId,
+            transitionSettingsByCanvasId,
+          } = splitCanvasRows(componentRows);
+
+          previewPage = mapCanvasRow(
+            previewCanvas,
+            componentsByCanvasId.get(previewCanvas.canvas_id) || [],
+            backgroundSettingsByCanvasId.get(previewCanvas.canvas_id) || {},
+            transitionSettingsByCanvasId.get(previewCanvas.canvas_id) || {}
+          );
+        }
+
+        responseProjects.push({
+          projectId: project.project_id,
+          name: project.name,
+          description: project.description,
+          category: project.category,
+          status: project.status,
+          isOwner,
+          ownerName: userById.get(project.user_id) || "",
+          myRole: isOwner ? "owner" : collaboratorRole,
+          pageCount: projectCanvases.length,
+          updatedAt: project.updated_at,
+          previewPage,
+        });
+      }
+
+      responseProjects.sort(
+        (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
+      );
+      return res.json({ success: true, projects: responseProjects });
+    }
 
     const [projects] = await db.query(
     `SELECT
@@ -2866,6 +3047,13 @@ app.put("/api/canvases/:id", requireProjectAccess("editor"), async (req, res) =>
 app.post("/api/canvases/:id/publish", requireAuth, async (req, res) => {
   try {
     const projectId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid canvas project ID.",
+      });
+    }
+
     const userId = req.session.user.user_id;
 
     const [rows] = await db.query(
@@ -2890,14 +3078,21 @@ app.post("/api/canvases/:id/publish", requireAuth, async (req, res) => {
         ? "draft"
         : "published";
 
-    await db.query(
+    const [result] = await db.query(
       `UPDATE projects
        SET status = ?, updated_at = NOW()
-       WHERE project_id = ?`,
-      [newStatus, projectId]
+       WHERE project_id = ? AND user_id = ?`,
+      [newStatus, projectId, userId]
     );
 
-    res.json({
+    if (result.affectedRows === 0) {
+      return res.status(409).json({
+        success: false,
+        message: "Project status changed before the update completed. Refresh and try again.",
+      });
+    }
+
+    return res.json({
       success: true,
       status: newStatus,
       message:
@@ -2948,17 +3143,46 @@ app.delete("/api/canvases/:id", requireAuth, async (req, res) => {
       });
     }
 
-    await connection.query(`DELETE FROM components WHERE canvas_id IN (
-      SELECT canvas_id FROM canvases WHERE project_id = ?
-    )`, [projectId]);
+    if (db.getStatus().source === "fallback") {
+      const [projectCanvases] = await connection.query(
+        `SELECT canvas_id FROM canvases WHERE project_id = ?`,
+        [projectId]
+      );
 
-    await connection.query(`DELETE FROM canvases WHERE project_id = ?`, [
-      projectId,
-    ]);
+      for (const canvas of projectCanvases) {
+        await connection.query(
+          `DELETE FROM components WHERE canvas_id = ?`,
+          [canvas.canvas_id]
+        );
+      }
 
-    await connection.query(`DELETE FROM projects WHERE project_id = ?`, [
-      projectId,
-    ]);
+      await connection.query(`DELETE FROM canvases WHERE project_id = ?`, [
+        projectId,
+      ]);
+      await connection.query(
+        `DELETE FROM project_collaborators WHERE project_id = ?`,
+        [projectId]
+      );
+      await connection.query(
+        `DELETE FROM monitor_playlist_items WHERE project_id = ?`,
+        [projectId]
+      );
+      await connection.query(`DELETE FROM projects WHERE project_id = ?`, [
+        projectId,
+      ]);
+    } else {
+      await connection.query(`DELETE FROM components WHERE canvas_id IN (
+        SELECT canvas_id FROM canvases WHERE project_id = ?
+      )`, [projectId]);
+
+      await connection.query(`DELETE FROM canvases WHERE project_id = ?`, [
+        projectId,
+      ]);
+
+      await connection.query(`DELETE FROM projects WHERE project_id = ?`, [
+        projectId,
+      ]);
+    }
 
     await connection.commit();
 
@@ -4084,6 +4308,30 @@ function requireProjectAccess(minRole = "viewer") {
 // List collaborators
 app.get("/api/canvases/:canvasId/collaborators", requireProjectAccess("viewer"), async (req, res) => {
   try {
+    if (db.getStatus().source === "fallback") {
+      const [[collaborators], [users]] = await Promise.all([
+        db.query(
+          `SELECT id, user_id, role
+           FROM project_collaborators
+           WHERE project_id = ?`,
+          [req.params.canvasId]
+        ),
+        db.query("SELECT user_id, username, email FROM users"),
+      ]);
+      const usersById = new Map(users.map((user) => [Number(user.user_id), user]));
+      return res.json(
+        collaborators.map((collaborator) => {
+          const user = usersById.get(Number(collaborator.user_id));
+          return {
+            id: collaborator.user_id,
+            name: user?.username || "",
+            email: user?.email || "",
+            role: collaborator.role,
+          };
+        })
+      );
+    }
+
     const [rows] = await db.query(
       `SELECT u.user_id AS id, u.username AS name, u.email, pc.role
        FROM project_collaborators pc
@@ -4127,13 +4375,37 @@ app.post("/api/canvases/:canvasId/collaborators", requireProjectAccess("editor")
       return res.status(400).json({ success: false, message: "Only producer accounts can be added as collaborators." });
     }
 
-    await db.query(
-      `INSERT INTO project_collaborators (project_id, user_id, role)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE role = VALUES(role)`,
-      [req.params.canvasId, user.user_id, role]
-    );
-    res.json({ success: true });
+    if (db.getStatus().source === "fallback") {
+      const [existing] = await db.query(
+        `SELECT id
+         FROM project_collaborators
+         WHERE project_id = ? AND user_id = ?
+         LIMIT 1`,
+        [req.params.canvasId, user.user_id]
+      );
+      if (existing.length > 0) {
+        await db.query(
+          `UPDATE project_collaborators
+           SET role = ?
+           WHERE project_id = ? AND user_id = ?`,
+          [role, req.params.canvasId, user.user_id]
+        );
+      } else {
+        await db.query(
+          `INSERT INTO project_collaborators (project_id, user_id, role)
+           VALUES (?, ?, ?)`,
+          [req.params.canvasId, user.user_id, role]
+        );
+      }
+    } else {
+      await db.query(
+        `INSERT INTO project_collaborators (project_id, user_id, role)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [req.params.canvasId, user.user_id, role]
+      );
+    }
+    return res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Unable to add collaborator." });

@@ -228,6 +228,29 @@
   color: #657970;
 }
 
+.scheduler-schedule-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.scheduler-schedule-controls select {
+  min-height: 44px;
+  max-width: 260px;
+  padding: 0 12px;
+  border: 1px solid #ccdcd2;
+  border-radius: 14px;
+  color: #173429;
+  background: white;
+  font: inherit;
+}
+
+.scheduler-schedule-controls select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .scheduler-category + .scheduler-category {
   margin-top: 28px;
 }
@@ -624,6 +647,8 @@
   .scheduler-hero,
   .scheduler-section-heading { flex-direction: column; }
   .scheduler-hero-actions { width: 100%; justify-content: flex-start; }
+  .scheduler-schedule-controls { width: 100%; flex-direction: column; align-items: stretch; }
+  .scheduler-schedule-controls select { max-width: none; }
 
   .scheduler-summary-grid { grid-template-columns: 1fr; }
   .scheduler-card-grid,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { API_BASE_URL } from "../utils/media";
 import CanvasPreview from "../components/CanvasPreview";
 import "./SharedWithMe.css";
@@ -7,6 +7,8 @@ import "./SharedWithMe.css";
 function CanvasViewer() {
   const { canvasId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const backPath = location.state?.from || "/shared";
   const [project, setProject] = useState(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [error, setError] = useState("");
@@ -43,8 +45,8 @@ function CanvasViewer() {
       <div className="page my-canvas-page">
         <div className="canvas-alert canvas-alert--error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => navigate("/shared")}>
-            Back to Shared with Me
+          <button type="button" onClick={() => navigate(backPath)}>
+            Back
           </button>
         </div>
       </div>
@@ -59,9 +61,9 @@ function CanvasViewer() {
       <button
         type="button"
         className="button-back"
-        onClick={() => navigate("/shared")}
+        onClick={() => navigate(backPath)}
       >
-        ← Back to Shared with Me
+        ← Back
       </button>
 
       <header className="viewer-header">

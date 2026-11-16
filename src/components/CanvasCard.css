@@ -48,6 +48,25 @@
   white-space: nowrap;
 }
 
+.saved-canvas-card__title-button {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: inherit;
+}
+
+.saved-canvas-card__title-button:hover,
+.saved-canvas-card__title-button:focus-visible {
+  color: #35724d;
+  text-decoration: underline;
+}
+
 .category-pill {
   flex-shrink: 0;
   padding: 5px 9px;
@@ -125,19 +144,49 @@
 /* ✅ NEW: actions layout */
 .saved-canvas-card__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 /* shared button base */
 .saved-canvas-card__edit,
-.saved-canvas-card__publish {
-  width: 100%;
+.saved-canvas-card__publish,
+.saved-canvas-card__view,
+.saved-canvas-card__share {
+  flex: 1 1 calc(50% - 10px);
+  min-width: 0;
+  width: auto;
   border-radius: 9px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 700;
   padding: 10px 14px;
   transition: background 0.2s ease, color 0.2s ease;
+}
+
+.saved-canvas-card__view {
+  border: 1px solid #5fa875;
+  background: #5fa875;
+  color: #fff;
+}
+
+.saved-canvas-card__view:hover,
+.saved-canvas-card__view:focus-visible {
+  background: #35724d;
+  outline: none;
+}
+
+.saved-canvas-card__share {
+  border: 1px solid #d6e5dc;
+  background: #f1f7f3;
+  color: #315a49;
+}
+
+.saved-canvas-card__share:hover,
+.saved-canvas-card__share:focus-visible {
+  border-color: #5fa875;
+  background: #e2f3e7;
+  outline: none;
 }
 
 /* EDIT button */
@@ -170,6 +219,7 @@
 
 /* DELETE button */
 .saved-canvas-card__delete {
+  flex: 1 1 calc(50% - 10px);
   background: #ff4d4f;
   color: white;
   border: none;

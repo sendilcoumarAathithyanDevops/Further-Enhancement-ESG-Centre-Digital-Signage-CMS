@@ -302,7 +302,12 @@ export default function ManageProjects() {
               </thead>
               <tbody>
                 {filteredProjects.map((p, i) => (
-                  <tr key={p.project_id}>
+                  <tr
+                    key={p.project_id}
+                    onDoubleClick={() =>
+                      navigate(`/category-preview?project=${p.project_id}`)
+                    }
+                  >
                     <td data-label="#">{i + 1}</td>
                     <td data-label="Project Name">
                       <strong>{p.name}</strong>

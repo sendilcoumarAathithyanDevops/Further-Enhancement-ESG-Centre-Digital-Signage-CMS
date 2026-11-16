@@ -3,6 +3,7 @@ import {
   FiAlertTriangle,
   FiBookOpen,
   FiDownload,
+  FiEdit2,
   FiEye,
   FiFile,
   FiFileText,
@@ -18,6 +19,7 @@ import "./KnowledgeBase.css";
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
 const CATEGORIES = [
+  { value: "general", label: "General" },
   { value: "environmental", label: "Environmental" },
   { value: "social", label: "Social" },
   { value: "governance", label: "Governance" },
@@ -134,13 +136,20 @@ function Modal({ title, description, onClose, children, footer, busy = false }) 
 // ========================
 // UPLOAD MODAL
 // ========================
-function UploadModal({ onClose, onUploaded }) {
-  const [values, setValues] = useState({ title: "", content: "", category: "environmental" });
+function UploadModal({ article, onClose, onUploaded }) {
+  const isEditing = Boolean(article);
+  const [values, setValues] = useState(() => ({
+    title: article?.title || "",
+    content: article?.content || "",
+    category: article?.category || "environmental",
+  }));
   const [file, setFile] = useState(null);
+  const [removeExistingFile, setRemoveExistingFile] = useState(false);
   const [errors, setErrors] = useState({});
   const [requestError, setRequestError] = useState("");
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const formId = isEditing ? "kb-edit-form" : "kb-upload-form";
 
   const update = (field, value) => {
     setValues((v) => ({ ...v, [field]: value }));
@@ -170,16 +179,23 @@ function UploadModal({ onClose, onUploaded }) {
       payload.append("title", values.title.trim());
       payload.append("content", values.content.trim());
       payload.append("category", values.category);
+      if (removeExistingFile) payload.append("clearFile", "true");
       if (file) payload.append("file", file);
 
-      const res = await fetch(`${API_BASE_URL}/api/knowledge-base`, {
-        method: "POST",
-        credentials: "include",
-        body: payload,
-      });
+      const res = await fetch(
+        isEditing
+          ? `${API_BASE_URL}/api/knowledge-base/${article.articleId}`
+          : `${API_BASE_URL}/api/knowledge-base`,
+        {
+          method: isEditing ? "PUT" : "POST",
+          credentials: "include",
+          body: payload,
+        }
+      );
+
       const data = await res.json();
-      if (!res.ok || !data.success) throw new Error(data.message || "Upload failed.");
-      onUploaded("Article uploaded successfully.");
+      if (!res.ok || !data.success) throw new Error(data.message || (isEditing ? "Update failed." : "Upload failed."));
+      onUploaded(isEditing ? "Article updated successfully." : "Article uploaded successfully.");
     } catch (err) {
       setRequestError(err.message || "Unable to upload article.");
     } finally {
@@ -189,8 +205,10 @@ function UploadModal({ onClose, onUploaded }) {
 
   return (
     <Modal
-      title="Upload Article"
-      description="Add a new knowledge base entry with an optional file attachment."
+      title={isEditing ? "Edit Article" : "Upload Article"}
+      description={isEditing
+        ? "Update the article details or replace its file attachment."
+        : "Add a new knowledge base entry with an optional file attachment."}
       onClose={onClose}
       busy={saving}
       footer={
@@ -198,13 +216,13 @@ function UploadModal({ onClose, onUploaded }) {
           <button type="button" className="kb-button kb-button--secondary" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button type="submit" form="kb-upload-form" className="kb-button kb-button--primary" disabled={saving}>
-            {saving ? "Uploading..." : "Upload Article"}
+          <button type="submit" form={formId} className="kb-button kb-button--primary" disabled={saving}>
+            {saving ? (isEditing ? "Saving..." : "Uploading...") : (isEditing ? "Save Changes" : "Upload Article")}
           </button>
         </>
       }
     >
-      <form id="kb-upload-form" className="kb-form" onSubmit={submit} noValidate>
+      <form id={formId} className="kb-form" onSubmit={submit} noValidate>
         {requestError && (
           <div className="kb-inline-error" role="alert">{requestError}</div>
         )}
@@ -264,6 +282,29 @@ function UploadModal({ onClose, onUploaded }) {
                 <FiX />
               </button>
             </div>
+          ) : isEditing && article.filePath && !removeExistingFile ? (
+            <div className="kb-file-selected">
+              <span>{getFileIcon(article.fileType)}</span>
+              <div>
+                <strong>{article.filePath.split("/").pop()}</strong>
+                <small>Current attachment</small>
+              </div>
+              <button
+                type="button"
+                className="kb-icon-button"
+                onClick={() => setRemoveExistingFile(true)}
+                aria-label="Remove current attachment"
+              >
+                <FiX />
+              </button>
+              <button
+                type="button"
+                className="kb-button kb-button--secondary"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Replace
+              </button>
+            </div>
           ) : (
             <button
               type="button"
@@ -271,7 +312,7 @@ function UploadModal({ onClose, onUploaded }) {
               onClick={() => fileInputRef.current?.click()}
             >
               <FiFile />
-              <span>Click to choose a file</span>
+              <span>{removeExistingFile ? "Attachment will be removed — choose a replacement" : "Click to choose a file"}</span>
               <small>PDF, Word, Excel, PowerPoint, images — up to 50 MB</small>
             </button>
           )}
@@ -283,6 +324,7 @@ function UploadModal({ onClose, onUploaded }) {
             onChange={(e) => {
               const f = e.target.files?.[0] || null;
               setFile(f);
+              if (f) setRemoveExistingFile(false);
               setRequestError("");
             }}
           />
@@ -374,20 +416,33 @@ function StatCard({ icon, label, value, helper, tone }) {
 // ========================
 // ARTICLE CARD
 // ========================
-function ArticleCard({ article, onDelete }) {
+function ArticleCard({ article, onDelete, onEdit, onView }) {
   const fileIcon = getFileIcon(article.fileType);
   const fileSize = formatBytes(article.fileSize);
   const viewUrl = article.filePath ? `${API_BASE_URL}${article.filePath}` : null;
 
   return (
-    <article className="kb-article-card">
+    <article
+      className="kb-article-card"
+      onDoubleClick={(event) => {
+        if (event.target.closest(".kb-article-card__actions")) return;
+        onView(article);
+      }}
+    >
       <div className="kb-article-card__icon-col">
         <span className="kb-article-card__file-icon">{fileIcon}</span>
       </div>
 
       <div className="kb-article-card__body">
         <div className="kb-article-card__title-row">
-          <strong className="kb-article-card__title">{article.title}</strong>
+          <button
+            type="button"
+            className="kb-article-card__title"
+            onClick={() => onView(article)}
+            aria-label={`Open article ${article.title}`}
+          >
+            {article.title}
+          </button>
           <span className={`kb-category-badge kb-category-badge--${article.category}`}>
             {article.category}
           </span>
@@ -407,6 +462,15 @@ function ArticleCard({ article, onDelete }) {
       </div>
 
       <div className="kb-article-card__actions">
+        <button
+          type="button"
+          className="kb-row-action"
+          onClick={() => onEdit(article)}
+          title="Edit article"
+          aria-label={`Edit ${article.title}`}
+        >
+          <FiEdit2 />
+        </button>
         {viewUrl && (
           <>
             <a
@@ -441,6 +505,43 @@ function ArticleCard({ article, onDelete }) {
         </button>
       </div>
     </article>
+  );
+}
+
+function ArticleDetail({ article, onClose }) {
+  const fileUrl = article.filePath ? `${API_BASE_URL}${article.filePath}` : null;
+  const fileName = article.filePath?.split("/").pop() || "Attached file";
+
+  return (
+    <Modal
+      title={article.title}
+      description={`${article.category} · Uploaded ${formatDate(article.createdAt)}`}
+      onClose={onClose}
+      footer={
+        <button type="button" className="kb-button kb-button--secondary" onClick={onClose}>
+          Close
+        </button>
+      }
+    >
+      <div className="kb-article-detail">
+        <h3>Article</h3>
+        <p>{article.content || "No article text was provided."}</p>
+        {fileUrl && (
+          <div className="kb-article-detail__attachment">
+            <div>
+              <strong>{fileName}</strong>
+              {article.fileType && <span>{String(article.fileType).toUpperCase()}</span>}
+            </div>
+            <a href={fileUrl} target="_blank" rel="noreferrer">
+              <FiEye /> View attachment
+            </a>
+            <a href={fileUrl} download>
+              <FiDownload /> Download
+            </a>
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -712,6 +813,8 @@ function KnowledgeBase() {
               <ArticleCard
                 key={article.articleId}
                 article={article}
+                onView={(selectedArticle) => setDialog({ type: "view", article: selectedArticle })}
+                onEdit={(selectedArticle) => setDialog({ type: "edit", article: selectedArticle })}
                 onDelete={(a) => setDialog({ type: "delete", article: a })}
               />
             ))}
@@ -724,12 +827,23 @@ function KnowledgeBase() {
         <UploadModal onClose={closeDialog} onUploaded={handleUploaded} />
       )}
 
+      {dialog?.type === "edit" && (
+        <UploadModal
+          article={dialog.article}
+          onClose={closeDialog}
+          onUploaded={handleUploaded}
+        />
+      )}
+
       {dialog?.type === "delete" && (
         <DeleteModal
           article={dialog.article}
           onClose={closeDialog}
           onDeleted={handleDeleted}
         />
+      )}
+      {dialog?.type === "view" && (
+        <ArticleDetail article={dialog.article} onClose={closeDialog} />
       )}
     </div>
   );

@@ -12,6 +12,28 @@ The supplied ZIP intentionally excludes real `.env` files, uploaded media, `node
 
 ---
 
+## Local AI Support (Ollama)
+
+AI Support uses the local Ollama service through the backend; the browser does not connect to Ollama directly.
+
+1. Install and start [Ollama](https://ollama.com/download) on the computer running the app.
+2. In a terminal, download the default support model:
+
+   ```sh
+   ollama pull llama3.2:3b
+   ```
+
+   If Ollama is not already running as a desktop service, start it with `ollama serve`.
+3. Configure `Backend/.env` with `OLLAMA_URL=http://localhost:11434` and `OLLAMA_SUPPORT_MODEL=llama3.2:3b`. These are also the backend defaults.
+4. Start the backend from the project root with `npm run start:backend`, then start the React app in a second terminal with `npm start`.
+5. Sign in as a producer or administrator and open the AI Support chat.
+
+The chat is available only while the backend and Ollama are running and the configured model is installed. To use a different local model, pull it with `ollama pull <model>` and set `OLLAMA_SUPPORT_MODEL` to the same model name.
+
+To create a reusable template, ask AI Support to create a template, choose a template type, and describe the content and visual style you want. The generated template is saved to the shared template selector for producers and administrators.
+
+If the backend logs `SQL unavailable (ECONNREFUSED)`, it is running in local JSON fallback mode. In that mode AI-generated templates are saved in `Backend/data/fallback-db.json`. For MySQL-backed storage, restore the configured database connection and apply `Backend/migrations/create-canvas-templates.sql` once.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
