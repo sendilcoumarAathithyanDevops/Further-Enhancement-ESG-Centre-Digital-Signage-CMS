@@ -204,6 +204,7 @@ function ContentScheduler() {
   const compatibleProjects = projects.filter(
     (project) =>
       project.category === "default" ||
+      selectedMonitor?.monitor_category === "default" ||
       project.category === selectedMonitor?.monitor_category
   );
 

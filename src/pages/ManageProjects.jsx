@@ -25,9 +25,11 @@ const CATEGORY_META = {
   default: { label: "Default", emoji: "📁" },
 };
 
-function formatDate(value) {
-  if (!value) return "—";
-  const date = new Date(value);
+function formatDate(value, fallbackValue) {
+  let date = value ? new Date(value) : new Date(Number.NaN);
+  if (Number.isNaN(date.getTime()) && fallbackValue) {
+    date = new Date(fallbackValue);
+  }
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-SG", {
     day: "2-digit",
@@ -328,7 +330,9 @@ export default function ManageProjects() {
                     <td data-label="Category">
                       <CategoryBadge category={p.category} />
                     </td>
-                    <td data-label="Published Date">{formatDate(p.updated_at)}</td>
+                    <td data-label="Published Date">
+                      {formatDate(p.updated_at, p.created_at)}
+                    </td>
                     <td data-label="Actions">
                       <div className="manage-users-row-actions">
                         <button

@@ -258,7 +258,7 @@ CREATE TABLE `monitors` (
   `monitor_name` varchar(150) NOT NULL,
   `monitor_key` varchar(100) NOT NULL,
   `pairing_code` varchar(20) DEFAULT NULL,
-  `monitor_category` enum('environmental','governance','social') NOT NULL,
+  `monitor_category` enum('environmental','governance','social','default') NOT NULL,
   `location` varchar(255) DEFAULT NULL,
   `status` enum('online','offline','maintenance') NOT NULL DEFAULT 'offline',
   `last_connected_at` timestamp NULL DEFAULT NULL,

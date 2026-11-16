@@ -181,6 +181,19 @@
       "background_image_path": null,
       "created_at": "2026-07-07 12:04:45",
       "updated_at": "2026-07-07 12:04:45"
+    },
+    {
+      "project_id": 12,
+      "name": "Page 1",
+      "canvas_order": 1,
+      "width": 1920,
+      "height": 1080,
+      "background_color": "#6e6e6e",
+      "background_image_path": null,
+      "canvas_id": 105,
+      "duration_seconds": 10,
+      "created_at": "2026-11-16T15:16:58.021Z",
+      "updated_at": "2026-11-16T15:16:58.021Z"
     }
   ],
   "components": [
@@ -1223,6 +1236,57 @@
       "rotation": 0,
       "layer_order": 1,
       "style_json": "{\"fontSize\":28,\"fontWeight\":\"600\",\"color\":\"#000000\",\"textAlign\":\"left\",\"padding\":18,\"backgroundColor\":\"#FFFFFF\"}"
+    },
+    {
+      "canvas_id": 105,
+      "type": "shape",
+      "content_text": "__BACKGROUND_SETTINGS__",
+      "file_path": null,
+      "external_url": null,
+      "position_x": 0,
+      "position_y": 0,
+      "width": 1920,
+      "height": 1080,
+      "rotation": 0,
+      "layer_order": 1,
+      "style_json": "{\"widgetKind\":\"backgroundSettings\",\"backgroundFit\":\"fill\",\"imageOpacity\":1,\"colorOpacity\":1}",
+      "component_id": 437,
+      "created_at": "2026-11-16T15:16:58.023Z",
+      "updated_at": "2026-11-16T15:16:58.023Z"
+    },
+    {
+      "canvas_id": 105,
+      "type": "shape",
+      "content_text": "__TRANSITION_SETTINGS__",
+      "file_path": null,
+      "external_url": null,
+      "position_x": 0,
+      "position_y": 0,
+      "width": 1920,
+      "height": 1080,
+      "rotation": 0,
+      "layer_order": 1,
+      "style_json": "{\"widgetKind\":\"transitionSettings\",\"type\":\"none\"}",
+      "component_id": 438,
+      "created_at": "2026-11-16T15:16:58.024Z",
+      "updated_at": "2026-11-16T15:16:58.024Z"
+    },
+    {
+      "canvas_id": 105,
+      "type": "text",
+      "content_text": "Welcome to RP",
+      "file_path": null,
+      "external_url": null,
+      "position_x": 707,
+      "position_y": 404,
+      "width": 490,
+      "height": 153,
+      "rotation": 0,
+      "layer_order": 2,
+      "style_json": "{\"widgetKind\":\"text\",\"textType\":\"title\",\"fontSize\":57,\"fontWeight\":700,\"color\":\"#000000\",\"textAlign\":\"left\"}",
+      "component_id": 439,
+      "created_at": "2026-11-16T15:16:58.025Z",
+      "updated_at": "2026-11-16T15:16:58.025Z"
     }
   ],
   "knowledge_base": [
@@ -1670,6 +1734,15 @@
       "is_active": 1,
       "created_at": "2026-07-08 04:08:50",
       "updated_at": "2026-07-08 04:08:50"
+    },
+    {
+      "monitor_id": 32,
+      "project_id": 12,
+      "display_order": 1,
+      "project_loop_count": 1,
+      "slide_duration_seconds": 10,
+      "is_active": 1,
+      "playlist_item_id": 74
     }
   ],
   "monitor_schedules": [
@@ -1684,6 +1757,22 @@
       "schedule_id": 1,
       "created_at": "2026-11-14 10:33:32",
       "updated_at": "2026-11-14 10:33:32"
+    },
+    {
+      "monitor_id": 32,
+      "project_id": 12,
+      "created_by": 1,
+      "start_at": "2026-11-16 16:15:00",
+      "end_at": "2026-11-16 17:15:00",
+      "status": "scheduled",
+      "notes": null,
+      "repeat_days": "[\"monday\",\"tuesday\",\"wednesday\",\"thursday\",\"friday\"]",
+      "time_zone": "Asia/Singapore",
+      "repeat_start_time": "00:15",
+      "repeat_end_time": "01:15",
+      "schedule_id": 2,
+      "created_at": "2026-11-16 16:02:13",
+      "updated_at": "2026-11-16 16:02:13"
     }
   ],
   "monitors": [
@@ -1856,14 +1945,17 @@
       "last_wake_requested_at": null
     },
     {
-      "monitor_name": "environmental_monitor_NaN",
-      "monitor_key": "environmental_monitor_NaN",
-      "pairing_code": "AVW24E",
-      "pairing_expires_at": "DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR)",
-      "monitor_category": "environmental",
-      "location": "environmental Display Area",
+      "monitor_name": "default_monitor_1",
+      "monitor_key": "default_monitor_1",
+      "pairing_code": "5MN8CS",
+      "pairing_expires_at": "2026-11-17 15:31:36",
+      "monitor_category": "default",
+      "location": "default Display Area",
       "status": "offline",
-      "is_paired": "FALSE"
+      "is_paired": false,
+      "monitor_id": 32,
+      "created_at": "2026-11-16 15:31:36",
+      "updated_at": "2026-11-16 15:31:36"
     }
   ],
   "project_collaborators": [
@@ -1993,6 +2085,19 @@
       "created_from_template_id": null,
       "created_at": "2026-07-02 19:17:53",
       "updated_at": "2026-07-05 16:29:37"
+    },
+    {
+      "user_id": 1,
+      "name": "Welcome Page",
+      "description": "welcome testing",
+      "category": "default",
+      "status": "published",
+      "thumbnail_path": null,
+      "is_template": 0,
+      "created_from_template_id": null,
+      "project_id": 12,
+      "created_at": "2026-11-16T15:16:58.017Z",
+      "updated_at": "NOW()"
     }
   ],
   "users": [
@@ -2151,5 +2256,14 @@
       "updated_at": "2026-11-13T09:08:16.323Z"
     }
   ],
-  "display_power_schedules": []
+  "display_power_schedules": [],
+  "monitor_playlist_pages": [
+    {
+      "playlist_item_id": 74,
+      "canvas_id": 105,
+      "page_order": 1,
+      "duration_seconds": 10,
+      "playlist_page_id": 1
+    }
+  ]
 }

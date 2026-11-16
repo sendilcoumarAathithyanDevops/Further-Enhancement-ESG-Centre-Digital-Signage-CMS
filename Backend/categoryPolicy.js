@@ -21,7 +21,11 @@ function isTemplateCategoryAllowed(category, role) {
 }
 
 function isProjectCategoryCompatible(category, displayCategory) {
-  return category === "default" || category === displayCategory;
+  return (
+    category === "default" ||
+    displayCategory === "default" ||
+    category === displayCategory
+  );
 }
 
 module.exports = {

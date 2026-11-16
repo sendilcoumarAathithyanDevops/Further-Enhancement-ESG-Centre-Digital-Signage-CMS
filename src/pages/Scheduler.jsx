@@ -34,6 +34,7 @@ const CATEGORY_LABELS = {
   environmental: "Environmental",
   social: "Social",
   governance: "Governance",
+  default: "Default",
 };
 
 const DAY_OPTIONS = [
@@ -314,7 +315,7 @@ function Scheduler() {
   }, [notice]);
 
   const monitorGroups = useMemo(() => {
-    const groups = ["environmental", "social", "governance"].map((category) => ({
+    const groups = ["environmental", "social", "governance", "default"].map((category) => ({
       category,
       monitors: monitors.filter((monitor) => normalizeCategory(monitor.monitor_category) === category),
     }));
