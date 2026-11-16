@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import CanvasCard from "../components/CanvasCard";
 import TemplateSelectionModal from "../components/TemplateSelectionModal";
+import CollaboratorsModal from "../components/editor/CollaboratorsModal";
 import { API_BASE_URL } from "../utils/media";
 import "./MyCanvas.css";
 
@@ -12,9 +13,11 @@ function MyCanvas() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publishingProjectId, setPublishingProjectId] = useState(null);
   const [successMessage, setSuccessMessage] = useState(
     location.state?.successMessage || ""
   );
+  const [sharingProjectId, setSharingProjectId] = useState(null);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -70,6 +73,10 @@ function MyCanvas() {
   };
 
   const handlePublish = async (projectId) => {
+    if (publishingProjectId === projectId) return;
+    setPublishingProjectId(projectId);
+    setError("");
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/api/canvases/${projectId}/publish`,
@@ -84,9 +91,17 @@ function MyCanvas() {
       if (!response.ok) {
         throw new Error(data.message || "Failed to publish project.");
       }
+      if (data.status !== "published" && data.status !== "draft") {
+        throw new Error("The server returned an invalid project status.");
+      }
 
-      // refresh list after publish
-      loadProjects();
+      setProjects((currentProjects) =>
+        currentProjects.map((project) =>
+          project.projectId === projectId
+            ? { ...project, status: data.status }
+            : project
+        )
+      );
 
       setSuccessMessage(
         data.status === "published"
@@ -95,7 +110,9 @@ function MyCanvas() {
       );
     } catch (err) {
       console.error(err);
-      setError(err.message);
+      setError(err.message || "Failed to update project status.");
+    } finally {
+      setPublishingProjectId(null);
     }
   };
 
@@ -104,12 +121,6 @@ function MyCanvas() {
   // =========================
   const handleDelete = async (projectId) => {
     try {
-      const confirmDelete = window.confirm(
-        "Are you sure you want to delete this canvas?"
-      );
-
-      if (!confirmDelete) return;
-
       const response = await fetch(
         `${API_BASE_URL}/api/canvases/${projectId}`,
         {
@@ -190,9 +201,16 @@ function MyCanvas() {
               <CanvasCard
                 key={project.projectId}
                 project={project}
+                onView={(projectId) =>
+                  navigate(`/canvas/view/${projectId}`, {
+                    state: { from: "/canvas" },
+                  })
+                }
                 onEdit={(projectId) => navigate(`/canvas/edit/${projectId}`)}
                 onPublish={handlePublish}
                 onDelete={handleDelete}
+                onShare={setSharingProjectId}
+                publishing={publishingProjectId === project.projectId}
               />
             ))}
 
@@ -219,6 +237,12 @@ function MyCanvas() {
         onClose={() => setIsModalOpen(false)}
         onSelect={handleTemplateSelect}
       />
+      {sharingProjectId !== null && (
+        <CollaboratorsModal
+          canvasId={sharingProjectId}
+          onClose={() => setSharingProjectId(null)}
+        />
+      )}
     </div>
   );
 }

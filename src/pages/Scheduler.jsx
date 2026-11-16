@@ -95,6 +95,21 @@ function hasValidMac(value) {
   return /^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(String(value || ""));
 }
 
+function normalizeCategory(value) {
+  const category = String(value || "").trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, category)
+    ? category
+    : "other";
+}
+
+function categoryLabel(value) {
+  const category = String(value || "").trim().toLowerCase();
+  return (
+    CATEGORY_LABELS[category] ||
+    (category ? `${category[0].toUpperCase()}${category.slice(1)}` : "Other")
+  );
+}
+
 function commandLabel(commandType) {
   return String(commandType || "")
     .replaceAll("_", " ")
@@ -165,6 +180,7 @@ function Scheduler() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [scheduleMonitorId, setScheduleMonitorId] = useState("");
   const [scheduleModal, setScheduleModal] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [scheduleForm, setScheduleForm] = useState({
@@ -179,21 +195,93 @@ function Scheduler() {
   const loadData = useCallback(async ({ quiet = false } = {}) => {
     quiet ? setRefreshing(true) : setLoading(true);
     setError("");
-    try {
-      const [summaryData, monitorData, scheduleData] = await Promise.all([
-        apiRequest("/api/admin/power-scheduler/summary"),
-        apiRequest("/api/admin/power-scheduler/monitors"),
-        apiRequest("/api/admin/power-schedules"),
-      ]);
-      setSummary(summaryData.summary || EMPTY_SUMMARY);
-      setMonitors(monitorData.monitors || []);
-      setPowerSchedules(scheduleData.schedules || []);
-    } catch (requestError) {
-      setError(requestError.message || "Unable to load the Display Power Scheduler.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    const [summaryResult, monitorResult, scheduleResult] = await Promise.allSettled([
+      apiRequest("/api/admin/power-scheduler/summary"),
+      apiRequest("/api/admin/power-scheduler/monitors"),
+      apiRequest("/api/admin/power-schedules"),
+    ]);
+    const errors = [];
+    const totalDisplays =
+      summaryResult.status === "fulfilled"
+        ? Number(summaryResult.value.summary?.totalDisplays) || 0
+        : 0;
+
+    if (summaryResult.status === "fulfilled") {
+      const nextSummary = summaryResult.value.summary || EMPTY_SUMMARY;
+      setSummary(nextSummary);
+    } else {
+      errors.push(`Summary: ${summaryResult.reason.message || "Unable to load display totals."}`);
     }
+
+    if (scheduleResult.status === "fulfilled") {
+      setPowerSchedules(scheduleResult.value.schedules || []);
+    } else {
+      errors.push(`Schedules: ${scheduleResult.reason.message || "Unable to load saved schedules."}`);
+    }
+
+    let displayListLoaded = false;
+    let monitorError = "";
+    if (monitorResult.status === "fulfilled" && Array.isArray(monitorResult.value.monitors)) {
+      setMonitors(monitorResult.value.monitors);
+      displayListLoaded =
+        monitorResult.value.monitors.length > 0 ||
+        (summaryResult.status === "fulfilled" && totalDisplays === 0);
+    } else {
+      monitorError =
+        monitorResult.status === "rejected"
+          ? monitorResult.reason.message || "Detailed display information could not be loaded."
+          : "The scheduler returned an invalid display list.";
+    }
+
+    if (!displayListLoaded) {
+      try {
+        const basicMonitorData = await apiRequest("/monitors");
+        const basicMonitors = basicMonitorData.monitors;
+        if (!Array.isArray(basicMonitors) || basicMonitors.length === 0) {
+          throw new Error("The basic display list was empty.");
+        }
+        setMonitors(
+          basicMonitors.map((monitor) => {
+            const monitorSchedules =
+              scheduleResult.status === "fulfilled"
+                ? (scheduleResult.value.schedules || []).filter(
+                    (schedule) => Number(schedule.monitor_id) === Number(monitor.monitor_id)
+                  )
+                : [];
+            const schedule = monitorSchedules[monitorSchedules.length - 1];
+            return {
+              ...monitor,
+              is_paired: Boolean(monitor.is_paired),
+              wake_on_wlan_enabled: Boolean(monitor.wake_on_wlan_enabled),
+              power_schedule: schedule
+                ? {
+                    power_schedule_id: schedule.power_schedule_id,
+                    is_enabled: Boolean(schedule.is_enabled),
+                    sleep_time: schedule.sleep_time,
+                    wake_time: schedule.wake_time,
+                    repeat_days: schedule.repeat_days,
+                    notes: schedule.notes || "",
+                  }
+                : null,
+              latest_command: null,
+            };
+          })
+        );
+        setNotice(
+          `Detailed display information could not be loaded (${monitorError || "no displays were returned"}); showing basic display records.`
+        );
+      } catch (fallbackError) {
+        errors.push(
+          `Displays: ${monitorError || "No displays were returned."} Basic display lookup also failed: ${fallbackError.message || "Unknown error."}`
+        );
+      }
+    } else if (!displayListLoaded) {
+      setMonitors([]);
+    }
+
+    setError(errors.join(" "));
+    setLoading(false);
+    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -226,11 +314,22 @@ function Scheduler() {
   }, [notice]);
 
   const monitorGroups = useMemo(() => {
-    return ["environmental", "social", "governance"].map((category) => ({
+    const groups = ["environmental", "social", "governance"].map((category) => ({
       category,
-      monitors: monitors.filter((monitor) => monitor.monitor_category === category),
+      monitors: monitors.filter((monitor) => normalizeCategory(monitor.monitor_category) === category),
     }));
+    const otherMonitors = monitors.filter(
+      (monitor) => normalizeCategory(monitor.monitor_category) === "other"
+    );
+    if (otherMonitors.length > 0) {
+      groups.push({ category: "other", monitors: otherMonitors });
+    }
+    return groups;
   }, [monitors]);
+  const selectedScheduleMonitor =
+    monitors.find((monitor) => Number(monitor.monitor_id) === Number(scheduleMonitorId)) ||
+    monitors[0] ||
+    null;
 
   const openScheduleModal = (monitor, schedule = monitor.power_schedule) => {
     setScheduleModal({ monitor, schedule });
@@ -431,11 +530,11 @@ function Scheduler() {
           <small>Times are Singapore local time. Wake-on-WLAN is experimental and is confirmed only after heartbeat resumes.</small>
         </div>
         <div className="scheduler-hero-actions">
-          <button type="button" className="scheduler-button scheduler-button--secondary" onClick={() => confirmBulkCommand("sleepAll")} disabled={saving || monitors.length === 0}>
+          <button type="button" className="scheduler-button scheduler-button--secondary" onClick={() => confirmBulkCommand("sleepAll")} disabled={saving || (summary.totalDisplays === 0 && monitors.length === 0)}>
             <FiMoon />
             Sleep All PCs
           </button>
-          <button type="button" className="scheduler-button scheduler-button--secondary scheduler-button--wake" onClick={() => confirmBulkCommand("wakeAll")} disabled={saving || monitors.length === 0}>
+          <button type="button" className="scheduler-button scheduler-button--secondary scheduler-button--wake" onClick={() => confirmBulkCommand("wakeAll")} disabled={saving || (summary.totalDisplays === 0 && monitors.length === 0)}>
             <FiSun />
             Wake All PCs
           </button>
@@ -492,11 +591,11 @@ function Scheduler() {
         {monitorGroups.map((group) => (
           <div className="scheduler-category" key={group.category}>
             <div className="scheduler-category__heading">
-              <h3>{CATEGORY_LABELS[group.category]}</h3>
+              <h3>{categoryLabel(group.category)}</h3>
               <span>{group.monitors.length} displays</span>
             </div>
             {group.monitors.length === 0 ? (
-              <div className="scheduler-empty-inline">No {CATEGORY_LABELS[group.category].toLowerCase()} displays found.</div>
+              <div className="scheduler-empty-inline">No {categoryLabel(group.category).toLowerCase()} displays found.</div>
             ) : (
               <div className="scheduler-display-grid">
                 {group.monitors.map((monitor) => {
@@ -510,7 +609,7 @@ function Scheduler() {
                         <div className="scheduler-display-icon"><FiMonitor /></div>
                         <div>
                           <h3>{monitor.monitor_name}</h3>
-                          <p>{CATEGORY_LABELS[monitor.monitor_category]} Display</p>
+                          <p>{categoryLabel(monitor.monitor_category)} Display</p>
                         </div>
                         <span className={`scheduler-state scheduler-state--${state}`}>{state}</span>
                       </div>
@@ -588,8 +687,33 @@ function Scheduler() {
           <div>
             <span>Automation</span>
             <h2>Power schedule table</h2>
+            <p>Schedules repeat weekly and are checked by the backend every 30 seconds.</p>
           </div>
-          <p>Schedules repeat weekly and are checked by the backend every 30 seconds.</p>
+          <div className="scheduler-schedule-controls">
+            <select
+              aria-label="Display for power schedule"
+              value={selectedScheduleMonitor?.monitor_id || ""}
+              onChange={(event) => setScheduleMonitorId(event.target.value)}
+              disabled={monitors.length === 0}
+            >
+              {monitors.map((monitor) => (
+                <option key={monitor.monitor_id} value={monitor.monitor_id}>
+                  {monitor.monitor_name} · {categoryLabel(monitor.monitor_category)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="scheduler-button scheduler-button--primary"
+              onClick={() => selectedScheduleMonitor && openScheduleModal(selectedScheduleMonitor)}
+              disabled={!selectedScheduleMonitor || saving}
+            >
+              <FiClock />
+              {selectedScheduleMonitor?.power_schedule
+                ? "Edit Sleep/Wake Schedule"
+                : "Set Sleep/Wake Schedule"}
+            </button>
+          </div>
         </div>
 
         <div className="scheduler-table-wrap">
@@ -609,14 +733,22 @@ function Scheduler() {
               {powerSchedules.map((schedule) => (
                 <tr key={schedule.power_schedule_id}>
                   <td><strong>{schedule.monitor_name}</strong></td>
-                  <td><span className={`scheduler-category-pill scheduler-category-pill--${schedule.monitor_category}`}>{CATEGORY_LABELS[schedule.monitor_category]}</span></td>
+                  <td><span className={`scheduler-category-pill scheduler-category-pill--${normalizeCategory(schedule.monitor_category)}`}>{categoryLabel(schedule.monitor_category)}</span></td>
                   <td>{schedule.sleep_time}</td>
                   <td>{schedule.wake_time}</td>
                   <td>{daysText(schedule.repeat_days)}</td>
                   <td><span className={`scheduler-schedule-status scheduler-schedule-status--${schedule.is_enabled ? "active" : "cancelled"}`}>{schedule.is_enabled ? "Enabled" : "Disabled"}</span></td>
                   <td>
                     <div className="scheduler-table-actions">
-                      <button type="button" onClick={() => openScheduleModal(monitors.find((item) => Number(item.monitor_id) === Number(schedule.monitor_id)), schedule)} aria-label={`Edit ${schedule.monitor_name} power schedule`}><FiEdit2 /></button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const monitor = monitors.find((item) => Number(item.monitor_id) === Number(schedule.monitor_id));
+                          if (monitor) openScheduleModal(monitor, schedule);
+                        }}
+                        disabled={!monitors.some((item) => Number(item.monitor_id) === Number(schedule.monitor_id))}
+                        aria-label={`Edit ${schedule.monitor_name} power schedule`}
+                      ><FiEdit2 /></button>
                       <button type="button" onClick={() => toggleScheduleEnabled(schedule)} aria-label={`${schedule.is_enabled ? "Disable" : "Enable"} ${schedule.monitor_name} power schedule`}><FiPower /></button>
                       <button type="button" onClick={() => deleteSchedule(schedule)} aria-label={`Delete ${schedule.monitor_name} power schedule`}><FiTrash2 /></button>
                     </div>
@@ -640,7 +772,7 @@ function Scheduler() {
       {scheduleModal && (
         <Modal
           title={scheduleModal.schedule ? "Edit sleep/wake schedule" : "Set sleep/wake schedule"}
-          subtitle={`${scheduleModal.monitor.monitor_name} · ${CATEGORY_LABELS[scheduleModal.monitor.monitor_category]}`}
+          subtitle={`${scheduleModal.monitor.monitor_name} · ${categoryLabel(scheduleModal.monitor.monitor_category)}`}
           onClose={() => !saving && setScheduleModal(null)}
           className="scheduler-modal--form"
         >

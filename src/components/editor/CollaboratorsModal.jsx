@@ -79,9 +79,9 @@ function CollaboratorsModal({ canvasId, onClose }) {
           ✕
         </button>
 
-        <h2>Collaborators</h2>
+        <h2>Share Project</h2>
         <p className="collab-subtitle">
-          Editors can modify this project. Viewers can only open it.
+          Share with another producer. Editors can modify this project; viewers can only open it.
         </p>
 
         {error && <div className="collab-error" role="alert">{error}</div>}
@@ -90,7 +90,7 @@ function CollaboratorsModal({ canvasId, onClose }) {
           <input
             type="email"
             value={email}
-            placeholder="Collaborator's email"
+            placeholder="Producer's account email"
             onChange={(e) => setEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />

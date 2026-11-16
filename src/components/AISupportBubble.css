@@ -98,6 +98,48 @@
   opacity: 0.75;
 }
 
+.ai-support-choices {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-support-choices button {
+  padding: 8px 10px;
+  border: 1px solid #b8d2c0;
+  border-radius: 8px;
+  color: #285d3b;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.ai-support-choices button:hover:not(:disabled) {
+  background: #f0f7f2;
+}
+
+.ai-support-choices button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ai-support-template-action {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #4d947c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ai-support-template-action:hover {
+  background: #3d7e69;
+}
+
 .ai-support-form {
   display: flex;
   gap: 8px;

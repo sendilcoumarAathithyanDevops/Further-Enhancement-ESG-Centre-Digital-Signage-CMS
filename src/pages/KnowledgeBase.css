@@ -445,6 +445,7 @@
   border-radius: 15px;
   background: #fbfcfb;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+  cursor: pointer;
 }
 
 .kb-article-card:hover {
@@ -481,11 +482,77 @@
 }
 
 .kb-article-card__title {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
   overflow: hidden;
   color: #1c2c22;
+  cursor: pointer;
+  font: inherit;
   font-size: 15px;
+  font-weight: 800;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.kb-article-card__title:hover,
+.kb-article-card__title:focus-visible {
+  color: #2d7143;
+  text-decoration: underline;
+}
+
+.kb-article-detail h3 {
+  margin: 0 0 10px;
+  color: #1c2c22;
+}
+
+.kb-article-detail > p {
+  margin: 0;
+  color: #46564d;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.kb-article-detail__attachment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e3e9e4;
+}
+
+.kb-article-detail__attachment > div {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 4px;
+  color: #1c2c22;
+}
+
+.kb-article-detail__attachment > div span {
+  color: #7a857d;
+  font-size: 0.75rem;
+}
+
+.kb-article-detail__attachment a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border: 1px solid #d6e5dc;
+  border-radius: 9px;
+  color: #315a49;
+  text-decoration: none;
+}
+
+.kb-article-detail__attachment a:hover,
+.kb-article-detail__attachment a:focus-visible {
+  background: #edf6f0;
 }
 
 .kb-article-card__desc {
@@ -545,6 +612,7 @@
 .kb-category-badge--environmental { background: #e5f5ea; color: #2d7143; }
 .kb-category-badge--social        { background: #e8f1fb; color: #356b9f; }
 .kb-category-badge--governance    { background: #efe9f9; color: #684a94; }
+.kb-category-badge--general       { background: #eef0f2; color: #52606d; }
 
 /* ========================
    ROW ACTION BUTTONS
