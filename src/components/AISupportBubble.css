@@ -63,6 +63,31 @@
   cursor: pointer;
 }
 
+.ai-support-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e5ebe7;
+  background: #fff;
+}
+
+.ai-support-tools button {
+  padding: 5px 8px;
+  border: 1px solid #c9ddd0;
+  border-radius: 999px;
+  color: #285d3b;
+  background: #f7faf8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+
+.ai-support-tools button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .ai-support-messages {
   flex: 1;
   overflow-y: auto;
@@ -79,6 +104,15 @@
   font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.ai-support-tool-badge {
+  display: block;
+  margin-bottom: 5px;
+  color: #39704b;
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .ai-support-message--assistant {
@@ -120,6 +154,34 @@
 }
 
 .ai-support-choices button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ai-support-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-support-confirmation button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: #4d947c;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ai-support-confirmation .ai-support-confirmation-cancel {
+  color: #34443a;
+  background: #e4ebe6;
+}
+
+.ai-support-confirmation button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
