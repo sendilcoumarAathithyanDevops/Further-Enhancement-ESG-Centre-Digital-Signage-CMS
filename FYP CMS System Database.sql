@@ -391,6 +391,28 @@ CREATE TABLE `users` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `display_power_schedules`
+--
+
+CREATE TABLE `display_power_schedules` (
+  `power_schedule_id` int NOT NULL AUTO_INCREMENT,
+  `monitor_id` int NOT NULL,
+  `created_by` int NOT NULL,
+  `is_enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `sleep_time` time NOT NULL,
+  `wake_time` time NOT NULL,
+  `repeat_days` json NOT NULL,
+  `notes` varchar(500) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`power_schedule_id`),
+  KEY `idx_power_schedule_monitor` (`monitor_id`),
+  KEY `idx_power_schedule_created_by` (`created_by`),
+  CONSTRAINT `fk_power_schedule_monitor` FOREIGN KEY (`monitor_id`) REFERENCES `monitors` (`monitor_id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_power_schedule_user` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
 -- Dumping data for table `users`
 --
 

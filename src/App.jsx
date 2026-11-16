@@ -23,6 +23,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import ManageUsers from "./pages/ManageUsers";
 import ManageProjects from "./pages/ManageProjects";
 import Scheduler from "./pages/Scheduler";
+import ContentScheduler from "./pages/ContentScheduler";
 import DisplayManager from "./pages/DisplayManager";
 import DisplayScreen from "./pages/Display_Screen/DisplayScreen";
 import SharedWithMe from "./pages/SharedWithMe";
@@ -219,6 +220,15 @@ function AppWrapper() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <Scheduler />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/content-scheduler"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <ContentScheduler />
               </ProtectedRoute>
             }
           />
