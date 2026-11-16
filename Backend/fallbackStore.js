@@ -55,6 +55,11 @@ function splitSqlValues(text) {
 function parseSqlValue(raw) {
   const value = raw.trim();
   if (/^NULL$/i.test(value)) return null;
+  if (/^TRUE$/i.test(value)) return 1;
+  if (/^FALSE$/i.test(value)) return 0;
+  if (/^(?:NOW|UTC_TIMESTAMP)\s*\(\s*\)$|^CURRENT_TIMESTAMP(?:\(\s*\))?$/i.test(value)) {
+    return new Date().toISOString().slice(0, 19).replace("T", " ");
+  }
   if (/^\d+$/.test(value)) return Number(value);
   if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
   if ((value.startsWith("'") && value.endsWith("'")) ||
@@ -621,6 +626,134 @@ function fallbackContentSchedulesQuery(sql, params) {
   });
 }
 
+function fallbackDisplayManagerProjectsQuery(sql, params) {
+  if (!/^SELECT\s+p\.project_id,\s*p\.name,\s*p\.description,\s*p\.category,\s*p\.status/i.test(sql) ||
+      !/\bFROM\s+projects\s+p\b/i.test(sql) ||
+      !/\bmonitor_playlist_items\s+mpi\b/i.test(sql) ||
+      !/\bJSON_ARRAYAGG\s*\(/i.test(sql)) {
+    return null;
+  }
+
+  const category = String(params[0] || "");
+  const projects = (data.projects || [])
+    .filter((project) =>
+      !(project.is_template === true || Number(project.is_template) === 1) &&
+      project.status === "published" &&
+      (category === "default" || project.category === "default" || project.category === category)
+    )
+    .sort((left, right) =>
+      String(right.updated_at || "").localeCompare(String(left.updated_at || "")) ||
+      Number(right.project_id) - Number(left.project_id)
+    );
+
+  return projects.flatMap((project) => {
+    const pages = (data.canvases || [])
+      .filter((canvas) => Number(canvas.project_id) === Number(project.project_id))
+      .sort((left, right) =>
+        Number(left.canvas_order) - Number(right.canvas_order) ||
+        Number(left.canvas_id) - Number(right.canvas_id)
+      )
+      .map((canvas) => ({
+        canvas_id: canvas.canvas_id,
+        canvas_order: canvas.canvas_order,
+        name: canvas.name,
+      }));
+    const assignments = (data.monitor_playlist_items || [])
+      .filter((item) =>
+        Number(item.project_id) === Number(project.project_id) &&
+        (item.is_active === true || Number(item.is_active) === 1)
+      );
+
+    return (assignments.length ? assignments : [null]).map((assignment) => {
+      const monitor = assignment
+        ? (data.monitors || []).find(
+            (item) => Number(item.monitor_id) === Number(assignment.monitor_id)
+          )
+        : null;
+      return {
+        project_id: project.project_id,
+        name: project.name,
+        description: project.description,
+        category: project.category,
+        status: project.status,
+        page_count: pages.length,
+        pages,
+        assigned_monitor_id: monitor?.monitor_id || null,
+        assigned_monitor_name: monitor?.monitor_name || null,
+      };
+    });
+  });
+}
+
+function fallbackMonitorPlaylistQuery(sql, params) {
+  if (!/^SELECT\s+mpi\.playlist_item_id,\s*mpi\.monitor_id,\s*mpi\.project_id/i.test(sql) ||
+      !/\bFROM\s+monitor_playlist_items\s+mpi\b/i.test(sql) ||
+      !/\bJOIN\s+projects\s+p\b/i.test(sql)) {
+    return null;
+  }
+
+  const monitorId = Number(params[0]);
+  return (data.monitor_playlist_items || [])
+    .filter((item) =>
+      Number(item.monitor_id) === monitorId &&
+      (item.is_active === true || Number(item.is_active) === 1)
+    )
+    .sort((left, right) =>
+      Number(left.display_order) - Number(right.display_order) ||
+      Number(left.playlist_item_id) - Number(right.playlist_item_id)
+    )
+    .flatMap((item) => {
+      const project = (data.projects || []).find(
+        (row) => Number(row.project_id) === Number(item.project_id)
+      );
+      if (!project) return [];
+      const pageCount = (data.canvases || []).filter(
+        (canvas) => Number(canvas.project_id) === Number(project.project_id)
+      ).length;
+      return [{
+        playlist_item_id: item.playlist_item_id,
+        monitor_id: item.monitor_id,
+        project_id: item.project_id,
+        display_order: item.display_order,
+        project_loop_count: item.project_loop_count,
+        slide_duration_seconds: item.slide_duration_seconds,
+        name: project.name,
+        description: project.description,
+        category: project.category,
+        status: project.status,
+        page_count: pageCount,
+      }];
+    });
+}
+
+function fallbackMonitorPlaylistPagesQuery(sql, params) {
+  if (!/^SELECT\s+mpp\.playlist_page_id,\s*mpp\.canvas_id,\s*mpp\.page_order,\s*mpp\.duration_seconds/i.test(sql) ||
+      !/\bFROM\s+monitor_playlist_pages\s+mpp\b/i.test(sql) ||
+      !/\bJOIN\s+canvases\s+c\b/i.test(sql)) {
+    return null;
+  }
+
+  const playlistItemId = Number(params[0]);
+  return (data.monitor_playlist_pages || [])
+    .filter((page) => Number(page.playlist_item_id) === playlistItemId)
+    .sort((left, right) =>
+      Number(left.page_order) - Number(right.page_order) ||
+      Number(left.playlist_page_id) - Number(right.playlist_page_id)
+    )
+    .flatMap((page) => {
+      const canvas = (data.canvases || []).find(
+        (row) => Number(row.canvas_id) === Number(page.canvas_id)
+      );
+      return canvas ? [{
+        playlist_page_id: page.playlist_page_id,
+        canvas_id: page.canvas_id,
+        page_order: page.page_order,
+        duration_seconds: page.duration_seconds,
+        name: canvas.name,
+      }] : [];
+    });
+}
+
 function fallbackPowerSchedulesQuery(sql) {
   if (!/^SELECT\s+dps\.power_schedule_id,\s*dps\.monitor_id,\s*dps\.created_by/i.test(sql) ||
       !/\bFROM\s+display_power_schedules\s+dps\b/i.test(sql) ||
@@ -629,7 +762,7 @@ function fallbackPowerSchedulesQuery(sql) {
     return null;
   }
 
-  const categoryOrder = ["environmental", "social", "governance"];
+  const categoryOrder = ["environmental", "social", "governance", "default"];
   return [...(data.display_power_schedules || [])]
     .map((schedule) => ({
       schedule,
@@ -674,7 +807,7 @@ function fallbackSchedulerMonitorsQuery(sql) {
     return null;
   }
 
-  const categoryOrder = ["environmental", "social", "governance"];
+  const categoryOrder = ["environmental", "social", "governance", "default"];
   return [...(data.monitors || [])]
     .sort((left, right) => {
       const categoryDifference =
@@ -683,7 +816,7 @@ function fallbackSchedulerMonitorsQuery(sql) {
       return categoryDifference || Number(left.monitor_id) - Number(right.monitor_id);
     })
     .map((monitor) => {
-      const activeItem = (data.monitor_playlist_items || [])
+      const activeItems = (data.monitor_playlist_items || [])
         .filter((item) =>
           Number(item.monitor_id) === Number(monitor.monitor_id) &&
           (item.is_active === true || Number(item.is_active) === 1)
@@ -691,7 +824,15 @@ function fallbackSchedulerMonitorsQuery(sql) {
         .sort((left, right) =>
           Number(left.display_order) - Number(right.display_order) ||
           Number(left.playlist_item_id) - Number(right.playlist_item_id)
-        )[0];
+        );
+      const activeItem = activeItems[0];
+      const assignedProjects = activeItems
+        .map((playlistItem) =>
+          (data.projects || []).find(
+            (item) => Number(item.project_id) === Number(playlistItem.project_id)
+          )?.name
+        )
+        .filter(Boolean);
       const project = activeItem
         ? (data.projects || []).find(
             (item) => Number(item.project_id) === Number(activeItem.project_id)
@@ -724,6 +865,8 @@ function fallbackSchedulerMonitorsQuery(sql) {
         last_connected_at_iso: fallbackDateTimeIso(monitor.last_connected_at),
         current_project_id: project?.project_id || null,
         current_project_name: project?.name || null,
+        playlist_count: activeItems.length,
+        assigned_projects: assignedProjects.length ? assignedProjects.join(", ") : null,
         ...(powerSchedule ? {
           power_schedule_id: powerSchedule.power_schedule_id,
           power_schedule_enabled: powerSchedule.is_enabled,
@@ -843,6 +986,12 @@ async function query(sql, params = []) {
     if (scheduleConflictRows) return [scheduleConflictRows, []];
     const contentSchedules = fallbackContentSchedulesQuery(normalized, params);
     if (contentSchedules) return [contentSchedules, []];
+    const displayManagerProjects = fallbackDisplayManagerProjectsQuery(normalized, params);
+    if (displayManagerProjects) return [displayManagerProjects, []];
+    const monitorPlaylistPages = fallbackMonitorPlaylistPagesQuery(normalized, params);
+    if (monitorPlaylistPages) return [monitorPlaylistPages, []];
+    const monitorPlaylist = fallbackMonitorPlaylistQuery(normalized, params);
+    if (monitorPlaylist) return [monitorPlaylist, []];
     const powerSchedules = fallbackPowerSchedulesQuery(normalized);
     if (powerSchedules) return [powerSchedules, []];
     const schedulerMonitors = fallbackSchedulerMonitorsQuery(normalized);
@@ -879,6 +1028,8 @@ async function query(sql, params = []) {
         monitors: "monitor_id",
         monitor_schedules: "schedule_id",
         display_power_schedules: "power_schedule_id",
+        monitor_playlist_items: "playlist_item_id",
+        monitor_playlist_pages: "playlist_page_id",
       };
       const autoIncrementColumn = autoIncrementColumns[table];
       if (autoIncrementColumn) {

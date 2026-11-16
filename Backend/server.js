@@ -528,6 +528,7 @@ function getUploadedPublicPath(kind, userId, file) {
 }
 
 const VALID_CATEGORIES = new Set(["environmental", "social", "governance"]);
+const VALID_MONITOR_CATEGORIES = new Set([...VALID_CATEGORIES, "default"]);
 const VALID_PREVIEW_CATEGORIES = new Set([...VALID_CATEGORIES, "default"]);
 const VALID_COMPONENT_TYPES = new Set(["text", "image", "video", "shape", "iframe"]);
 
@@ -2269,6 +2270,7 @@ app.get("/api/projects", requireAdmin, async (req, res) => {
         p.category,
         p.status,
         p.updated_at,
+        p.created_at,
         u.username AS owner
       FROM projects p
       JOIN users u
@@ -3728,7 +3730,7 @@ app.get("/monitors", requireAdmin, async (req, res) => {
         m.last_connected_at
 
       ORDER BY 
-        FIELD(m.monitor_category, 'environmental', 'governance', 'social'),
+        FIELD(m.monitor_category, 'environmental', 'governance', 'social', 'default'),
         m.monitor_id
     `);
 
@@ -3758,7 +3760,7 @@ app.post("/monitors", requireAdmin, async (req, res) => {
       });
     }
 
-    if (!["environmental", "governance", "social"].includes(category)) {
+    if (!VALID_MONITOR_CATEGORIES.has(category)) {
       return res.status(400).json({
         success: false,
         message: "Invalid category.",
@@ -3831,7 +3833,7 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
   try {
     const { category } = req.query;
 
-    if (!category || !["environmental", "governance", "social"].includes(category)) {
+    if (!category || !VALID_MONITOR_CATEGORIES.has(category)) {
       return res.status(400).json({
         success: false,
         message: "Valid category is required.",
@@ -3872,7 +3874,7 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
 
       WHERE p.is_template = FALSE
         AND p.status = 'published'
-        AND (p.category = ? OR p.category = 'default')
+        AND (? = 'default' OR p.category = ? OR p.category = 'default')
 
       GROUP BY
         p.project_id,
@@ -3885,7 +3887,7 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
 
       ORDER BY p.updated_at DESC
       `,
-      [category]
+      [category, category]
     );
 
     // Convert JSON string to object

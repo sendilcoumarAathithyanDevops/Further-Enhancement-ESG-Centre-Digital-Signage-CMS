@@ -19,9 +19,16 @@ test("existing category permissions remain unchanged", () => {
   assert.equal(isProjectCategoryAllowed("general", "admin"), false);
 });
 
-test("default projects can be displayed on any ESG display", () => {
+test("default projects can be displayed on any display", () => {
   assert.equal(isProjectCategoryCompatible("default", "environmental"), true);
   assert.equal(isProjectCategoryCompatible("default", "social"), true);
+  assert.equal(isProjectCategoryCompatible("default", "default"), true);
+});
+
+test("default displays can show any project category", () => {
+  assert.equal(isProjectCategoryCompatible("environmental", "default"), true);
+  assert.equal(isProjectCategoryCompatible("social", "default"), true);
+  assert.equal(isProjectCategoryCompatible("governance", "default"), true);
   assert.equal(isProjectCategoryCompatible("governance", "social"), false);
   assert.equal(isProjectCategoryCompatible("social", "social"), true);
 });

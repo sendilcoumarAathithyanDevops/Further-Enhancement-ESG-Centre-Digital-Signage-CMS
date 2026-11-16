@@ -11,7 +11,7 @@ const {
 } = require("./scheduleRecurrence");
 const { isProjectCategoryCompatible } = require("./categoryPolicy");
 
-const VALID_CATEGORIES = new Set(["environmental", "social", "governance"]);
+const VALID_CATEGORIES = new Set(["environmental", "social", "governance", "default"]);
 const VALID_SCHEDULE_STATUSES = new Set([
   "scheduled",
   "active",
@@ -774,7 +774,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
            WHERE ranked_mpi.row_num = 1
          ) mpi ON mpi.monitor_id = m.monitor_id
          LEFT JOIN projects p ON p.project_id = mpi.project_id
-         ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance'),
+         ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance', 'default'),
                   m.monitor_id ASC`
       );
 
@@ -1964,7 +1964,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
     const [monitorRows] = await db.query(
       `SELECT monitor_id, monitor_name, is_paired, status, mac_address
        FROM monitors
-       ORDER BY FIELD(monitor_category, 'environmental', 'social', 'governance'), monitor_id ASC`
+       ORDER BY FIELD(monitor_category, 'environmental', 'social', 'governance', 'default'), monitor_id ASC`
     );
 
     const results = [];
@@ -2042,7 +2042,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
        FROM display_power_schedules dps
        JOIN monitors m ON m.monitor_id = dps.monitor_id
        JOIN users u ON u.user_id = dps.created_by
-       ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance'),
+       ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance', 'default'),
                 m.monitor_id ASC, dps.power_schedule_id ASC`
     );
 
@@ -2167,7 +2167,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
              GROUP BY monitor_id
            ) latest_dps ON latest_dps.power_schedule_id = dps1.power_schedule_id
          ) dps ON dps.monitor_id = m.monitor_id
-         ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance'),
+         ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance', 'default'),
                   m.monitor_id ASC`
       );
 

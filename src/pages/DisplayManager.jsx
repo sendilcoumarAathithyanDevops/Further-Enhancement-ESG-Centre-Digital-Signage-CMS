@@ -123,6 +123,8 @@ function DisplayManager() {
     const openPlaylistManager = async (monitor) => {
         try {
             setSelectedMonitor(monitor);
+            setAvailableProjects([]);
+            setPlaylistItems([]);
             setPlaylistLoading(true);
 
             const projectsRes = await fetch(
@@ -152,7 +154,7 @@ function DisplayManager() {
             if (playlistData.success) {
                 setPlaylistItems(
                     playlistData.playlist.map((item) => ({
-                        projectId: item.project_id,
+                        projectId: Number(item.project_id),
                         projectName: item.name,
                         displayOrder: item.display_order,
 
@@ -180,7 +182,9 @@ function DisplayManager() {
     };
 
     const isProjectSelected = (projectId) => {
-        return playlistItems.some((item) => item.projectId === projectId);
+        return playlistItems.some(
+            (item) => Number(item.projectId) === Number(projectId)
+        );
     };
 
     const getPlaylistItem = (projectId) => {
@@ -196,15 +200,21 @@ function DisplayManager() {
     };
 
     const toggleProject = (project) => {
+        const projectId = Number(project.project_id);
+        if (!Number.isInteger(projectId) || projectId <= 0) {
+            alert("This project has no valid ID. Refresh the project list and try again.");
+            return;
+        }
+
         if (isAssignedToAnotherMonitor(project)) {
             return;
         }
 
-        const alreadySelected = isProjectSelected(project.project_id);
+        const alreadySelected = isProjectSelected(projectId);
 
         if (alreadySelected) {
             setPlaylistItems(
-                playlistItems.filter((item) => item.projectId !== project.project_id)
+                playlistItems.filter((item) => Number(item.projectId) !== projectId)
             );
             return;
         }
@@ -212,7 +222,7 @@ function DisplayManager() {
         setPlaylistItems([
             ...playlistItems,
             {
-                projectId: project.project_id,
+                projectId,
                 projectName: project.name,
                 displayOrder: playlistItems.length + 1,
                 pages: project.pages.map((page) => ({
@@ -282,6 +292,17 @@ function DisplayManager() {
     const savePlaylist = async () => {
         if (!selectedMonitor) return;
 
+        const normalizedItems = playlistItems.map((item) => ({
+            ...item,
+            projectId: Number(item.projectId),
+        }));
+        if (normalizedItems.some((item) =>
+            !Number.isInteger(item.projectId) || item.projectId <= 0
+        )) {
+            alert("A selected project has an invalid ID. Close and reopen the playlist, then try again.");
+            return;
+        }
+
         try {
             const res = await fetch(
                 `http://localhost:5000/api/monitors/${selectedMonitor.monitor_id}/playlist`,
@@ -292,7 +313,7 @@ function DisplayManager() {
                     },
                     credentials: "include",
                     body: JSON.stringify({
-                        items: playlistItems.map((item, index) => ({
+                        items: normalizedItems.map((item, index) => ({
                             projectId: item.projectId,
                             displayOrder: index + 1,
                             projectLoopCount: 1,
@@ -336,6 +357,10 @@ function DisplayManager() {
         (display) => display.monitor_category === "governance"
     ).length;
 
+    const defaultCount = displays.filter(
+        (display) => display.monitor_category === "default"
+    ).length;
+
     return (
         <div className="display-manager-page">
             <header className="display-manager-header">
@@ -357,6 +382,7 @@ function DisplayManager() {
                         <option value="environmental">Environmental</option>
                         <option value="social">Social</option>
                         <option value="governance">Governance</option>
+                        <option value="default">Default</option>
                     </select>
 
                     <button
@@ -402,6 +428,14 @@ function DisplayManager() {
                     value={governanceCount}
                     helper="🏛️ Governance displays"
                     tone="purple"
+                />
+
+                <SummaryCard
+                    icon={<FiMonitor />}
+                    label="Default"
+                    value={defaultCount}
+                    helper="General-purpose displays"
+                    tone="orange"
                 />
             </section>
 
@@ -450,7 +484,9 @@ function DisplayManager() {
                                         <span
                                             className={`category-badge ${display.monitor_category}`}
                                         >
-                                            {display.monitor_category}
+                                            {display.monitor_category === "default"
+                                                ? "Default"
+                                                : display.monitor_category}
                                         </span>
                                     </td>
 
@@ -469,9 +505,14 @@ function DisplayManager() {
                                     </td>
 
                                     <td>
-                                        {Number(display.playlist_count) > 0
-                                            ? `${display.playlist_count} project(s)`
-                                            : "No projects"}
+                                        {Number(display.playlist_count) > 0 ? (
+                                            <div className="dm-playlist-summary">
+                                                <strong>{display.playlist_count} project(s)</strong>
+                                                <span>
+                                                    {display.assigned_projects || "Project names unavailable"}
+                                                </span>
+                                            </div>
+                                        ) : "No projects"}
                                     </td>
 
                                     <td>
