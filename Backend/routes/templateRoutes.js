@@ -275,6 +275,13 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
+  if (req.body.confirmed !== true) {
+    return res.status(400).json({
+      success: false,
+      message: "Confirm the template creation before saving it.",
+    });
+  }
+
   const kind =
     typeof req.body.kind === "string" ? req.body.kind.trim().slice(0, 120) : "";
   const details =

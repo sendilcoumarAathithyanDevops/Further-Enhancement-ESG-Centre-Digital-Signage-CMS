@@ -741,6 +741,51 @@ function fallbackAdminUserQuery(sql, params) {
   return null;
 }
 
+function fallbackAdminDashboardProjectsQuery(sql) {
+  if (
+    !/^SELECT\s+p\.project_id,\s*p\.name,\s*p\.category,\s*p\.status,\s*p\.updated_at,\s*u\.username\s+AS\s+producer_username,\s*COUNT\(c\.canvas_id\)\s+AS\s+page_count\s+FROM\s+projects\s+p\b/i.test(
+      sql
+    ) ||
+    !/\bJOIN\s+users\s+u\b/i.test(sql) ||
+    !/\bLEFT\s+JOIN\s+canvases\s+c\b/i.test(sql)
+  ) {
+    return null;
+  }
+
+  const usersById = new Map(
+    (data.users || []).map((user) => [Number(user.user_id), user])
+  );
+  const pageCounts = new Map();
+  for (const canvas of data.canvases || []) {
+    const projectId = Number(canvas.project_id);
+    if (canvas.canvas_id != null && Number.isInteger(projectId)) {
+      pageCounts.set(projectId, (pageCounts.get(projectId) || 0) + 1);
+    }
+  }
+
+  return (data.projects || [])
+    .filter((project) => {
+      const owner = usersById.get(Number(project.user_id));
+      return owner && project.is_template !== true && Number(project.is_template) !== 1;
+    })
+    .sort(
+      (left, right) =>
+        String(right.updated_at || "").localeCompare(String(left.updated_at || "")) ||
+        Number(right.project_id) - Number(left.project_id)
+    )
+    .slice(0, 5)
+    .map((project) => ({
+      project_id: project.project_id,
+      name: project.name,
+      category: project.category,
+      status: project.status,
+      updated_at: project.updated_at,
+      producer_username:
+        usersById.get(Number(project.user_id))?.username || null,
+      page_count: pageCounts.get(Number(project.project_id)) || 0,
+    }));
+}
+
 async function query(sql, params = []) {
   loadData();
   const normalized = String(sql).trim();
@@ -753,6 +798,8 @@ async function query(sql, params = []) {
     if (powerSchedules) return [powerSchedules, []];
     const schedulerMonitors = fallbackSchedulerMonitorsQuery(normalized);
     if (schedulerMonitors) return [schedulerMonitors, []];
+    const adminDashboardProjects = fallbackAdminDashboardProjectsQuery(normalized);
+    if (adminDashboardProjects) return [adminDashboardProjects, []];
     const adminUserRows = fallbackAdminUserQuery(normalized, params);
     if (adminUserRows) return [adminUserRows, []];
     const rows = projectSelect(normalized, selectedRows(normalized, params));

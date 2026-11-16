@@ -74,6 +74,10 @@ AI Support runs locally through Ollama; the browser sends requests to the CMS ba
 
 AI requests use CPU inference to avoid GPU/CUDA incompatibilities. This works on machines where Ollama's GPU backend cannot run, but may be slower. To use a different local model, pull it with `ollama pull <model>` and set `OLLAMA_SUPPORT_MODEL` to that model name.
 
+### AI assistant tools and permissions
+
+The assistant provides a small, server-enforced tool set inspired by MCP: read-only display status and dashboard-summary queries for administrators, ESG title/caption suggestions for producers and administrators, and template drafting. Dashboard summaries refresh when the backend starts and every five minutes; answers include the snapshot time. The snapshot contains aggregate counts and recent projects/displays, not recent users' personal details. Display status is read from the CMS monitor records; AI does not control screens. Saving an AI-generated shared template and opening it in a new canvas both require explicit confirmation. Delete operations are not available through the AI assistant.
+
 ---
 
 ## Getting Started with Create React App
