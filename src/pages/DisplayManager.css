@@ -367,7 +367,7 @@
 ========================= */
 .display-manager-page .dm-modal-overlay {
   position: fixed;
-  inset: 0;
+  inset: 0 0 0 305px;
   background: rgba(17, 24, 39, 0.45);
   display: flex;
   justify-content: center;
@@ -378,8 +378,8 @@
 }
 
 .display-manager-page .dm-modal {
-  width: min(980px, calc(100vw - 40px));
-  max-width: calc(100vw - 40px);
+  width: min(980px, 100%);
+  max-width: 100%;
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   overflow-x: hidden;
@@ -390,7 +390,7 @@
 }
 
 .display-manager-page .dm-modal.wide {
-  width: min(1050px, calc(100vw - 40px));
+  width: min(1050px, 100%);
 }
 
 .display-manager-page .dm-modal-header {
@@ -910,5 +910,22 @@
 
   .display-manager-page .dm-summary-row p {
     white-space: normal;
+  }
+}
+
+@media (max-width: 760px) {
+  .display-manager-page .dm-modal-overlay {
+    inset: 0;
+    z-index: 110;
+  }
+}
+
+.main-content.collapsed .display-manager-page .dm-modal-overlay {
+  left: 100px;
+}
+
+@media (max-width: 760px) {
+  .main-content.collapsed .display-manager-page .dm-modal-overlay {
+    left: 0;
   }
 }
