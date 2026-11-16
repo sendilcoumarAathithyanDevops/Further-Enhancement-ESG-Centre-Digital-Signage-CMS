@@ -277,6 +277,13 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
+  if (req.body.confirmed !== true) {
+    return res.status(400).json({
+      success: false,
+      message: "Confirm the template creation before saving it.",
+    });
+  }
+
   const kind =
     typeof req.body.kind === "string" ? req.body.kind.trim().slice(0, 120) : "";
   const details =
@@ -292,7 +299,7 @@ router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
   }
 
   const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-  const model = process.env.OLLAMA_SUPPORT_MODEL || "llama3.2:3b";
+  const model = process.env.OLLAMA_SUPPORT_MODEL || "bonsai-2";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120000);
 
@@ -304,6 +311,8 @@ router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
         model,
         stream: false,
         format: "json",
+        think: false,
+        options: { num_gpu: 0 },
         messages: [
           {
             role: "system",
