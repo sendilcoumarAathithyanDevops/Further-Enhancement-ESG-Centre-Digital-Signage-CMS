@@ -432,6 +432,61 @@
   gap: 14px;
 }
 
+.content-scheduler-recurrence-toggle {
+  display: flex !important;
+  width: fit-content;
+  align-items: center;
+  gap: 10px !important;
+  cursor: pointer;
+}
+
+.content-scheduler-modal .content-scheduler-recurrence-toggle input {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: #247a4d;
+}
+
+.content-scheduler-weekdays {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.content-scheduler-weekdays legend {
+  margin-bottom: 8px;
+  color: #496258;
+  font-weight: 800;
+}
+
+.content-scheduler-weekdays > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.content-scheduler-weekdays button {
+  min-width: 48px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid #ccdcd2;
+  border-radius: 999px;
+  background: #fff;
+  color: #496258;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.content-scheduler-weekdays button.is-selected {
+  border-color: #247a4d;
+  background: #e8f6ee;
+  color: #1b6540;
+}
+
 .content-scheduler-form-hint {
   margin: -5px 0 0;
   color: #71837b;
