@@ -9,6 +9,10 @@ const crypto = require("crypto");
 const db = require("./db");
 const { registerSchedulerDisplayFeatures } = require("./schedulerDisplay");
 const {
+  isProjectCategoryAllowed,
+  isProjectCategoryCompatible,
+} = require("./categoryPolicy");
+const {
   sendSignupVerificationEmail,
   sendEmailChangeVerificationEmail,
   sendPasswordResetEmail
@@ -521,9 +525,10 @@ function getUploadedPublicPath(kind, userId, file) {
 }
 
 const VALID_CATEGORIES = new Set(["environmental", "social", "governance"]);
+const VALID_PREVIEW_CATEGORIES = new Set([...VALID_CATEGORIES, "default"]);
 const VALID_COMPONENT_TYPES = new Set(["text", "image", "video", "shape", "iframe"]);
 
-function validateProjectPayload(body) {
+function validateProjectPayload(body, role) {
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const description =
     typeof body.description === "string" ? body.description.trim() : "";
@@ -533,7 +538,9 @@ function validateProjectPayload(body) {
   if (!name) return "Project name is required.";
   if (name.length > 150) return "Project name must be 150 characters or fewer.";
   if (!description) return "Project description is required.";
-  if (!VALID_CATEGORIES.has(category)) return "A valid project category is required.";
+  if (!isProjectCategoryAllowed(category, role)) {
+    return "A valid project category is required.";
+  }
   if (pages.length === 0) return "The project must contain at least one page.";
   if (pages.length > 50) return "A project cannot contain more than 50 pages.";
 
@@ -2091,7 +2098,7 @@ app.get("/api/preview/projects", requireAuth, async (req, res) => {
         ? req.query.category.toLowerCase()
         : null;
  
-    if (categoryFilter && !VALID_CATEGORIES.has(categoryFilter)) {
+    if (categoryFilter && !VALID_PREVIEW_CATEGORIES.has(categoryFilter)) {
       return res.status(400).json({
         success: false,
         message: "Invalid category.",
@@ -2921,7 +2928,7 @@ app.get("/api/canvases/:id", requireProjectAccess("viewer"), async (req, res) =>
 });
 
 app.post("/api/canvases", requireAuth, async (req, res) => {
-  const validationError = validateProjectPayload(req.body);
+  const validationError = validateProjectPayload(req.body, req.session.user.role);
   if (validationError) {
     return res.status(400).json({
       success: false,
@@ -2978,7 +2985,7 @@ app.put("/api/canvases/:id", requireProjectAccess("editor"), async (req, res) =>
     });
   }
 
-  const validationError = validateProjectPayload(req.body);
+  const validationError = validateProjectPayload(req.body, req.session.user.role);
   if (validationError) {
     return res.status(400).json({
       success: false,
@@ -3670,7 +3677,7 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
 
       WHERE p.is_template = FALSE
         AND p.status = 'published'
-        AND p.category = ?
+        AND (p.category = ? OR p.category = 'default')
 
       GROUP BY
         p.project_id,
@@ -3936,11 +3943,11 @@ app.put("/api/monitors/:monitorId/playlist", requireAdmin, async (req, res) => {
           });
         }
 
-        if (project.category !== monitor.monitor_category) {
+        if (!isProjectCategoryCompatible(project.category, monitor.monitor_category)) {
           await connection.rollback();
           return res.status(400).json({
             success: false,
-            message: "Project category must match the monitor category.",
+            message: "Project category must match the monitor category or be Default.",
           });
         }
       }

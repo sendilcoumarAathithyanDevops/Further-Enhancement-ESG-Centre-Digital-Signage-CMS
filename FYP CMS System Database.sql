@@ -338,7 +338,7 @@ CREATE TABLE `projects` (
   `user_id` int NOT NULL,
   `name` varchar(150) NOT NULL,
   `description` text,
-  `category` enum('environmental','governance','social') NOT NULL,
+  `category` enum('environmental','governance','social','default') NOT NULL,
   `status` enum('draft','published','archived') NOT NULL DEFAULT 'draft',
   `thumbnail_path` varchar(500) DEFAULT NULL,
   `is_template` tinyint(1) NOT NULL DEFAULT '0',

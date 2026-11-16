@@ -19,6 +19,7 @@ const CATEGORY_LABELS = {
   environmental: "Environmental",
   social: "Social",
   governance: "Governance",
+  default: "Default",
 };
 
 const WEEKDAY_OPTIONS = [
@@ -201,7 +202,9 @@ function ContentScheduler() {
     (monitor) => String(monitor.monitor_id) === String(form.monitorId)
   );
   const compatibleProjects = projects.filter(
-    (project) => project.category === selectedMonitor?.monitor_category
+    (project) =>
+      project.category === "default" ||
+      project.category === selectedMonitor?.monitor_category
   );
 
   const counts = useMemo(
@@ -601,6 +604,7 @@ function ContentScheduler() {
                   {compatibleProjects.map((project) => (
                     <option key={project.project_id} value={project.project_id}>
                       {project.name}
+                      {project.category === "default" ? " · Default" : ""}
                     </option>
                   ))}
                 </select>

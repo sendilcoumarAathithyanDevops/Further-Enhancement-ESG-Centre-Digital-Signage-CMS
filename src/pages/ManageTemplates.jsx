@@ -68,6 +68,9 @@ function ManageTemplates() {
             case "governance":
                 return "Governance";
 
+            case "default":
+                return "Default";
+
             case "general":
             default:
                 return "General";

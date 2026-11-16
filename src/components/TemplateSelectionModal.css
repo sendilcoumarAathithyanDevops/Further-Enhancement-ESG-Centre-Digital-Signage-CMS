@@ -93,6 +93,7 @@ body.modal-open {
 }
 
 .template-option__name,
+.template-option__category,
 .template-option__description {
   display: block;
   margin-inline: 15px;
@@ -102,6 +103,13 @@ body.modal-open {
   margin-top: 14px;
   color: #1b2d25;
   font-size: 16px;
+  font-weight: 700;
+}
+
+.template-option__category {
+  margin-top: 5px;
+  color: #52606d;
+  font-size: 12px;
   font-weight: 700;
 }
 

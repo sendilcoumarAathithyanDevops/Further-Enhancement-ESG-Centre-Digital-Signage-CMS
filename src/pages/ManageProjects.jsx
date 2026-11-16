@@ -5,6 +5,7 @@ import {
   FiFolder,
   FiGlobe,
   FiMonitor,
+  FiPlus,
   FiRefreshCw,
   FiSearch,
   FiShield,
@@ -21,6 +22,7 @@ const CATEGORY_META = {
   environmental: { label: "Environmental", emoji: "🌱" },
   social: { label: "Social", emoji: "👥" },
   governance: { label: "Governance", emoji: "🏛️" },
+  default: { label: "Default", emoji: "📁" },
 };
 
 function formatDate(value) {
@@ -157,13 +159,22 @@ export default function ManageProjects() {
         <div>
           <span className="manage-users-eyebrow">Administrator workspace</span>
           <h1>Published Projects</h1>
-          <p>Projects published by producers will appear here.</p>
+          <p>Create projects or manage the published project library.</p>
           <span className="manage-users-count-pill">
             {totalPublished} published project{totalPublished === 1 ? "" : "s"}
           </span>
         </div>
 
         <div className="manage-users-header__actions">
+          <button
+            type="button"
+            className="manage-users-button manage-users-button--primary"
+            onClick={() =>
+              navigate("/canvas/new", { state: { fromAdminProjects: true } })
+            }
+          >
+            <FiPlus /> Create Project
+          </button>
           <button
             type="button"
             className="manage-users-button manage-users-button--secondary"
@@ -274,6 +285,7 @@ export default function ManageProjects() {
               <option value="environmental">Environmental</option>
               <option value="social">Social</option>
               <option value="governance">Governance</option>
+              <option value="default">Default</option>
             </select>
           </label>
 

@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const db = require("../db");
+const { isTemplateCategoryAllowed } = require("../categoryPolicy");
 
 const router = express.Router();
 
@@ -9,6 +10,7 @@ const VALID_TEMPLATE_CATEGORIES = new Set([
   "environmental",
   "social",
   "governance",
+  "default",
 ]);
 const VALID_WIDGET_TYPES = new Set(["text", "image", "video"]);
 
@@ -306,7 +308,7 @@ router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
           {
             role: "system",
             content:
-              'Create a polished, editable digital-signage canvas template. Return only JSON with this shape: {"name":"...","description":"...","category":"general|environmental|social|governance","pages":[{"name":"...","backgroundColor":"#RRGGBB","components":[{"type":"text|image|video","contentText":"...","positionX":0,"positionY":0,"width":500,"height":200,"style":{"fontSize":28,"fontWeight":"600","color":"#RRGGBB","textAlign":"left","backgroundColor":"#RRGGBB"}}]}]}. Use 1-3 pages, 1920x1080 coordinates, up to 8 widgets per page, and keep every widget inside the canvas. Use only text, image, and video widget types. Include meaningful placeholder copy and image/video upload labels where useful. Do not include file paths, URLs, markdown, or extra keys. Choose the most appropriate ESG category.',
+              'Create a polished, editable digital-signage canvas template. Return only JSON with this shape: {"name":"...","description":"...","category":"general|environmental|social|governance|default","pages":[{"name":"...","backgroundColor":"#RRGGBB","components":[{"type":"text|image|video","contentText":"...","positionX":0,"positionY":0,"width":500,"height":200,"style":{"fontSize":28,"fontWeight":"600","color":"#RRGGBB","textAlign":"left","backgroundColor":"#RRGGBB"}}]}]}. Use 1-3 pages, 1920x1080 coordinates, up to 8 widgets per page, and keep every widget inside the canvas. Use only text, image, and video widget types. Include meaningful placeholder copy and image/video upload labels where useful. Do not include file paths, URLs, markdown, or extra keys. Choose the most appropriate ESG category unless an administrator explicitly requests the Default category.',
           },
           {
             role: "user",
@@ -335,6 +337,13 @@ router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
     }
 
     const template = normaliseGeneratedTemplate(generated);
+    if (!isTemplateCategoryAllowed(template.category, req.session.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: "Only administrators can create default-category templates.",
+      });
+    }
+
     const templateKey = `${template.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
