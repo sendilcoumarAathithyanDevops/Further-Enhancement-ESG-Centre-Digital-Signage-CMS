@@ -752,7 +752,6 @@ function Scheduler() {
                   <td><span className={`scheduler-schedule-status scheduler-schedule-status--${schedule.is_enabled ? "active" : "cancelled"}`}>{schedule.is_enabled ? "Enabled" : "Disabled"}</span></td>
                   <td>
                     <div className="scheduler-table-actions">
-<<<<<<< HEAD
                       <button
                         type="button"
                         onClick={() => {
@@ -762,9 +761,6 @@ function Scheduler() {
                         disabled={!monitors.some((item) => Number(item.monitor_id) === Number(schedule.monitor_id))}
                         aria-label={`Edit ${schedule.monitor_name} power schedule`}
                       ><FiEdit2 /></button>
-=======
-                        <button type="button" onClick={() => openScheduleModal(monitors.find((item) => Number(item.monitor_id) === Number(schedule.monitor_id)), schedule)} aria-label={`Edit ${schedule.monitor_name} power schedule`}><FiEdit2 /></button>
->>>>>>> d4e2fe6a804afe4d10f955bbda93cd3aa7cfccbe
                       <button type="button" onClick={() => toggleScheduleEnabled(schedule)} aria-label={`${schedule.is_enabled ? "Disable" : "Enable"} ${schedule.monitor_name} power schedule`}><FiPower /></button>
                       <button type="button" onClick={() => deleteSchedule(schedule)} aria-label={`Delete ${schedule.monitor_name} power schedule`}><FiTrash2 /></button>
                     </div>
@@ -788,11 +784,7 @@ function Scheduler() {
       {scheduleModal && (
         <Modal
           title={scheduleModal.schedule ? "Edit sleep/wake schedule" : "Set sleep/wake schedule"}
-<<<<<<< HEAD
           subtitle={`${scheduleModal.monitor.monitor_name} · ${categoryLabel(scheduleModal.monitor.monitor_category)}`}
-=======
-          subtitle={`${scheduleModal.monitor.monitor_name} · ${CATEGORY_LABELS[scheduleModal.monitor.monitor_category] || "Display"}`}
->>>>>>> d4e2fe6a804afe4d10f955bbda93cd3aa7cfccbe
           onClose={() => !saving && setScheduleModal(null)}
           className="scheduler-modal--form"
         >
