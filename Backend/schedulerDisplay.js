@@ -751,14 +751,19 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
                 p.project_id AS current_project_id,
                 p.name AS current_project_name
          FROM monitors m
-         LEFT JOIN monitor_playlist_items mpi
-           ON mpi.playlist_item_id = (
-             SELECT mpi2.playlist_item_id
-             FROM monitor_playlist_items mpi2
-             WHERE mpi2.monitor_id = m.monitor_id AND mpi2.is_active = TRUE
-             ORDER BY mpi2.display_order ASC, mpi2.playlist_item_id ASC
-             LIMIT 1
-           )
+         LEFT JOIN (
+           SELECT playlist_item_id, monitor_id, project_id
+           FROM (
+             SELECT mpi.playlist_item_id, mpi.monitor_id, mpi.project_id,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY mpi.monitor_id
+                      ORDER BY mpi.display_order ASC, mpi.playlist_item_id ASC
+                    ) AS row_num
+             FROM monitor_playlist_items mpi
+             WHERE mpi.is_active = TRUE
+           ) ranked_mpi
+           WHERE ranked_mpi.row_num = 1
+         ) mpi ON mpi.monitor_id = m.monitor_id
          LEFT JOIN projects p ON p.project_id = mpi.project_id
          ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance'),
                   m.monitor_id ASC`
@@ -1952,23 +1957,29 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
                 dps.power_schedule_id, dps.is_enabled AS power_schedule_enabled,
                 dps.sleep_time, dps.wake_time, dps.repeat_days, dps.notes AS power_schedule_notes
          FROM monitors m
-         LEFT JOIN monitor_playlist_items mpi
-           ON mpi.playlist_item_id = (
-             SELECT mpi2.playlist_item_id
-             FROM monitor_playlist_items mpi2
-             WHERE mpi2.monitor_id = m.monitor_id AND mpi2.is_active = TRUE
-             ORDER BY mpi2.display_order ASC, mpi2.playlist_item_id ASC
-             LIMIT 1
-           )
+         LEFT JOIN (
+           SELECT playlist_item_id, monitor_id, project_id
+           FROM (
+             SELECT mpi.playlist_item_id, mpi.monitor_id, mpi.project_id,
+                    ROW_NUMBER() OVER (
+                      PARTITION BY mpi.monitor_id
+                      ORDER BY mpi.display_order ASC, mpi.playlist_item_id ASC
+                    ) AS row_num
+             FROM monitor_playlist_items mpi
+             WHERE mpi.is_active = TRUE
+           ) ranked_mpi
+           WHERE ranked_mpi.row_num = 1
+         ) mpi ON mpi.monitor_id = m.monitor_id
          LEFT JOIN projects p ON p.project_id = mpi.project_id
-         LEFT JOIN display_power_schedules dps
-           ON dps.power_schedule_id = (
-             SELECT dps2.power_schedule_id
-             FROM display_power_schedules dps2
-             WHERE dps2.monitor_id = m.monitor_id
-             ORDER BY dps2.power_schedule_id DESC
-             LIMIT 1
-           )
+         LEFT JOIN (
+           SELECT dps1.*
+           FROM display_power_schedules dps1
+           JOIN (
+             SELECT monitor_id, MAX(power_schedule_id) AS power_schedule_id
+             FROM display_power_schedules
+             GROUP BY monitor_id
+           ) latest_dps ON latest_dps.power_schedule_id = dps1.power_schedule_id
+         ) dps ON dps.monitor_id = m.monitor_id
          ORDER BY FIELD(m.monitor_category, 'environmental', 'social', 'governance'),
                   m.monitor_id ASC`
       );
