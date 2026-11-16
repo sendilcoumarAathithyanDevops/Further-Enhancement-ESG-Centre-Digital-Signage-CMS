@@ -294,6 +294,25 @@ function unalias(column) {
 }
 
 function compareWhere(condition, row, params) {
+  const nullMatch = /^\s*([A-Za-z_][\w.]*)\s+IS\s+(NOT\s+)?NULL\s*$/i.exec(condition);
+  if (nullMatch) {
+    const actual = row[unalias(nullMatch[1])];
+    const isNull = actual === null || actual === undefined;
+    return nullMatch[2] ? !isNull : isNull;
+  }
+
+  const inMatch = /^\s*([A-Za-z_][\w.]*)\s+(NOT\s+)?IN\s*\(([\s\S]*)\)\s*$/i.exec(condition);
+  if (inMatch) {
+    const actual = row[unalias(inMatch[1])];
+    const values = splitSqlValues(inMatch[3]).map((value) =>
+      value.trim() === "?" ? params.shift() : parseSqlValue(value)
+    );
+    const containsValue = values.some(
+      (value) => String(actual ?? "") === String(value ?? "")
+    );
+    return inMatch[2] ? !containsValue : containsValue;
+  }
+
   const match = /^\s*([A-Za-z_][\w.]*)\s*(=|!=|<>|>=|<=|>|<)\s*(\?|NULL|TRUE|FALSE|'([^']*)')\s*$/i.exec(condition);
   if (!match) return true;
   const column = unalias(match[1]);
@@ -504,6 +523,30 @@ function fallbackScheduleOverlapQuery(sql, params) {
   return overlaps.slice(0, 1).map((schedule) => ({ schedule_id: schedule.schedule_id }));
 }
 
+function fallbackScheduleConflictRowsQuery(sql, params) {
+  if (
+    !/^SELECT\s+schedule_id,\s*status,\s*repeat_days,\s*time_zone/i.test(sql) ||
+    !/\bFROM\s+monitor_schedules\b/i.test(sql) ||
+    !/\bWHERE\s+monitor_id\s*=\s*\?/i.test(sql)
+  ) {
+    return null;
+  }
+
+  const monitorId = Number(params[0]);
+  return (data.monitor_schedules || [])
+    .filter((schedule) => Number(schedule.monitor_id) === monitorId)
+    .map((schedule) => ({
+      schedule_id: schedule.schedule_id,
+      status: schedule.status,
+      repeat_days: schedule.repeat_days || null,
+      time_zone: schedule.time_zone || null,
+      repeat_start_time: schedule.repeat_start_time || null,
+      repeat_end_time: schedule.repeat_end_time || null,
+      start_at_iso: fallbackDateTimeIso(schedule.start_at),
+      end_at_iso: fallbackDateTimeIso(schedule.end_at),
+    }));
+}
+
 function fallbackContentSchedulesQuery(sql, params) {
   if (!/^SELECT\s+ms\.schedule_id,\s*ms\.monitor_id,\s*ms\.project_id,\s*ms\.created_by/i.test(sql) ||
       !/\bFROM\s+monitor_schedules\s+ms\b/i.test(sql) ||
@@ -562,6 +605,10 @@ function fallbackContentSchedulesQuery(sql, params) {
       created_by: schedule.created_by,
       status: schedule.status,
       notes: schedule.notes,
+      repeat_days: schedule.repeat_days || null,
+      time_zone: schedule.time_zone || null,
+      repeat_start_time: schedule.repeat_start_time || null,
+      repeat_end_time: schedule.repeat_end_time || null,
       start_at_iso: fallbackDateTimeIso(schedule.start_at),
       end_at_iso: fallbackDateTimeIso(schedule.end_at),
       created_at_iso: fallbackDateTimeIso(schedule.created_at),
@@ -747,6 +794,8 @@ async function query(sql, params = []) {
   if (/^SELECT/i.test(normalized)) {
     const scheduleOverlap = fallbackScheduleOverlapQuery(normalized, params);
     if (scheduleOverlap) return [scheduleOverlap, []];
+    const scheduleConflictRows = fallbackScheduleConflictRowsQuery(normalized, params);
+    if (scheduleConflictRows) return [scheduleConflictRows, []];
     const contentSchedules = fallbackContentSchedulesQuery(normalized, params);
     if (contentSchedules) return [contentSchedules, []];
     const powerSchedules = fallbackPowerSchedulesQuery(normalized);
