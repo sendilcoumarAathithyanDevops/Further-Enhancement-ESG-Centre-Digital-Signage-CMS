@@ -12,31 +12,6 @@ The supplied ZIP intentionally excludes real `.env` files, uploaded media, `node
 
 ---
 
-<<<<<<< HEAD
-## Local AI Support (Ollama)
-
-AI Support uses the local Ollama service through the backend; the browser does not connect to Ollama directly.
-
-1. Install and start [Ollama](https://ollama.com/download) on the computer running the app.
-2. In a terminal, download the default support model:
-
-   ```sh
-   ollama pull llama3.2:3b
-   ```
-
-   If Ollama is not already running as a desktop service, start it with `ollama serve`.
-3. Configure `Backend/.env` with `OLLAMA_URL=http://localhost:11434` and `OLLAMA_SUPPORT_MODEL=llama3.2:3b`. These are also the backend defaults.
-4. Start the backend from the project root with `npm run start:backend`, then start the React app in a second terminal with `npm start`.
-5. Sign in as a producer or administrator and open the AI Support chat.
-
-The chat is available only while the backend and Ollama are running and the configured model is installed. To use a different local model, pull it with `ollama pull <model>` and set `OLLAMA_SUPPORT_MODEL` to the same model name.
-
-To create a reusable template, ask AI Support to create a template, choose a template type, and describe the content and visual style you want. The generated template is saved to the shared template selector for producers and administrators.
-
-If the backend logs `SQL unavailable (ECONNREFUSED)`, it is running in local JSON fallback mode. In that mode AI-generated templates are saved in `Backend/data/fallback-db.json`. For MySQL-backed storage, restore the configured database connection and apply `Backend/migrations/create-canvas-templates.sql` once.
-
-# Getting Started with Create React App
-=======
 ## Test Accounts
 
 Use the following fallback database accounts to test the application:
@@ -77,51 +52,31 @@ The two SQL databases are **not automatically synchronized**. The local database
 
 ## AI Support with Ollama
 
-The producer and administrator accounts include an AI support chat bubble. The backend sends chat requests to Ollama at `http://localhost:11434` by default.
+AI Support runs locally through Ollama; the browser sends requests to the CMS backend, which connects to Ollama at `http://localhost:11434`. The default model is `bonsai-2`.
 
-### Keep Ollama running
+1. Install [Ollama](https://ollama.com/download) on the computer running the CMS.
+2. Pull the model:
 
-1. Install Ollama and open the Ollama desktop application. Ollama normally runs in the background.
-2. To start Ollama manually:
-
-   ```powershell
-   ollama serve
-   ```
-
-3. Install and verify the configured support model:
-
-   ```powershell
+   ```sh
    ollama pull bonsai-2
-   ollama list
    ```
 
-4. Confirm that Ollama is reachable:
+   Ollama normally runs as a desktop service. If it is not running, start it with `ollama serve`.
+3. Optionally set these values in `Backend/.env` (they are the defaults):
 
-   ```powershell
-   Invoke-RestMethod http://localhost:11434/api/tags
+   ```env
+   OLLAMA_URL=http://localhost:11434
+   OLLAMA_SUPPORT_MODEL=bonsai-2
    ```
 
-5. Restart Ollama after changing the Ollama configuration or support model.
+4. Start the backend with `npm run start:backend`, then the React app with `npm start`.
+5. Sign in as a producer or administrator and open AI Support.
 
-To start Ollama automatically when Windows starts, add a shortcut to Ollama in the Windows Startup folder (`Win + R`, then enter `shell:startup`). A typical Ollama executable path is:
-
-```text
-C:\Users\<username>\AppData\Local\Programs\Ollama\ollama.exe
-```
-
-Add these optional settings to `Backend/.env`:
-
-```env
-OLLAMA_URL=http://localhost:11434
-OLLAMA_SUPPORT_MODEL=bonsai-2
-```
-
-If the configured model is unavailable, run `ollama pull bonsai-2`, or update `OLLAMA_SUPPORT_MODEL` to a model listed by `ollama list`.
+AI requests use CPU inference to avoid GPU/CUDA incompatibilities. This works on machines where Ollama's GPU backend cannot run, but may be slower. To use a different local model, pull it with `ollama pull <model>` and set `OLLAMA_SUPPORT_MODEL` to that model name.
 
 ---
 
 ## Getting Started with Create React App
->>>>>>> d4e2fe6a804afe4d10f955bbda93cd3aa7cfccbe
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 

@@ -1230,8 +1230,10 @@ app.post("/ai-support/chat", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.OLLAMA_SUPPORT_MODEL || "llama3.2:3b",
+        model: process.env.OLLAMA_SUPPORT_MODEL || "bonsai-2",
         stream: false,
+        think: false,
+        options: { num_gpu: 0 },
         messages: [
           {
             role: "system",
