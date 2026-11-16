@@ -487,7 +487,11 @@ function AdminDashboard() {
           </button>
           <button type="button" onClick={() => navigate("/scheduler")}>
             <FiClock aria-hidden="true" />
-            <span><strong>Open Scheduler</strong><small>Manage administrative settings</small></span>
+            <span><strong>Power Scheduler</strong><small>Set display sleep and wake times</small></span>
+          </button>
+          <button type="button" onClick={() => navigate("/content-scheduler")}>
+            <FiClock aria-hidden="true" />
+            <span><strong>Content Scheduler</strong><small>Assign published projects to displays</small></span>
           </button>
         </div>
       </section>

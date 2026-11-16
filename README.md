@@ -12,6 +12,7 @@ The supplied ZIP intentionally excludes real `.env` files, uploaded media, `node
 
 ---
 
+<<<<<<< HEAD
 ## Local AI Support (Ollama)
 
 AI Support uses the local Ollama service through the backend; the browser does not connect to Ollama directly.
@@ -35,6 +36,92 @@ To create a reusable template, ask AI Support to create a template, choose a tem
 If the backend logs `SQL unavailable (ECONNREFUSED)`, it is running in local JSON fallback mode. In that mode AI-generated templates are saved in `Backend/data/fallback-db.json`. For MySQL-backed storage, restore the configured database connection and apply `Backend/migrations/create-canvas-templates.sql` once.
 
 # Getting Started with Create React App
+=======
+## Test Accounts
+
+Use the following fallback database accounts to test the application:
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Administrator | `admin` | `admin` |
+| Producer | `producer` | `producer` |
+| Test administrator | `testadmin` | `Test123!` |
+
+Open the login page at [http://localhost:3000](http://localhost:3000).
+
+## MySQL configuration and local failover
+
+The backend reads database settings from `Backend/.env`. The primary connection can point to Railway or another MySQL server. To use a local MySQL database when the primary is unavailable, add these optional settings:
+
+```env
+DB_FALLBACK_HOST=localhost
+DB_FALLBACK_PORT=3306
+DB_FALLBACK_USER=root
+DB_FALLBACK_PASSWORD=your-local-mysql-password
+DB_FALLBACK_NAME=fyp_cms
+DB_FALLBACK_SSL=false
+```
+
+Create the local database and import `FYP CMS System Database.sql` into it before starting the backend. The backend first checks the primary, then the local SQL fallback, and uses its JSON file store only if neither SQL database is available. If it switches to the local database after startup, it stays on that database until the backend restarts.
+
+Before updating an existing database, back it up. From the project root, run these additive migrations to create tables required by project previews and the display power scheduler:
+
+```powershell
+node Backend/migrations/add-monitor-playlist-pages.js
+node Backend/migrations/add-display-power-schedules.js
+```
+
+They use the SQL connection in `Backend/.env` and are safe to re-run. Do not re-import `FYP CMS System Database.sql` over a database containing data; the dump includes `DROP TABLE` statements.
+
+The two SQL databases are **not automatically synchronized**. The local database must be populated and kept current separately; this connection failover alone does not replicate data or copy writes back to Railway. Keep all database passwords in the ignored `Backend/.env` file and never commit them.
+
+## AI Support with Ollama
+
+The producer and administrator accounts include an AI support chat bubble. The backend sends chat requests to Ollama at `http://localhost:11434` by default.
+
+### Keep Ollama running
+
+1. Install Ollama and open the Ollama desktop application. Ollama normally runs in the background.
+2. To start Ollama manually:
+
+   ```powershell
+   ollama serve
+   ```
+
+3. Install and verify the configured support model:
+
+   ```powershell
+   ollama pull bonsai-2
+   ollama list
+   ```
+
+4. Confirm that Ollama is reachable:
+
+   ```powershell
+   Invoke-RestMethod http://localhost:11434/api/tags
+   ```
+
+5. Restart Ollama after changing the Ollama configuration or support model.
+
+To start Ollama automatically when Windows starts, add a shortcut to Ollama in the Windows Startup folder (`Win + R`, then enter `shell:startup`). A typical Ollama executable path is:
+
+```text
+C:\Users\<username>\AppData\Local\Programs\Ollama\ollama.exe
+```
+
+Add these optional settings to `Backend/.env`:
+
+```env
+OLLAMA_URL=http://localhost:11434
+OLLAMA_SUPPORT_MODEL=bonsai-2
+```
+
+If the configured model is unavailable, run `ollama pull bonsai-2`, or update `OLLAMA_SUPPORT_MODEL` to a model listed by `ollama list`.
+
+---
+
+## Getting Started with Create React App
+>>>>>>> d4e2fe6a804afe4d10f955bbda93cd3aa7cfccbe
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 

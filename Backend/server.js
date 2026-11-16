@@ -21,6 +21,25 @@ const templateRoutes = require("./routes/templateRoutes");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const configuredSessionSecret = process.env.SESSION_SECRET?.trim();
+const hasConfiguredSessionSecret =
+  configuredSessionSecret &&
+  !configuredSessionSecret.startsWith("replace-with-");
+
+if (process.env.NODE_ENV === "production" && !hasConfiguredSessionSecret) {
+  throw new Error("SESSION_SECRET must be configured in production.");
+}
+
+const sessionSecret = hasConfiguredSessionSecret
+  ? configuredSessionSecret
+  : crypto.randomBytes(32).toString("hex");
+
+if (!hasConfiguredSessionSecret) {
+  console.warn(
+    "SESSION_SECRET is not configured; using a temporary development secret. Sessions will reset when the server restarts."
+  );
+}
+
 const UPLOAD_ROOT = path.join(__dirname, "uploads");
 const BACKGROUND_SETTINGS_MARKER = "__BACKGROUND_SETTINGS__";
 const TRANSITION_SETTINGS_MARKER = "__TRANSITION_SETTINGS__";
@@ -238,7 +257,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: process.env.SESSION_SECRET,
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -3544,31 +3563,50 @@ app.post("/monitors", requireAdmin, async (req, res) => {
       });
     }
 
-    const [countRows] = await db.query(
-      "SELECT COUNT(*) AS total FROM monitors WHERE monitor_category = ?",
-      [category]
+    const [existingMonitors] = await db.query(
+      "SELECT monitor_name, monitor_key FROM monitors"
     );
+    const usedKeys = new Set(
+      existingMonitors.flatMap(({ monitor_name, monitor_key }) =>
+        [monitor_name, monitor_key].filter(Boolean)
+      )
+    );
+    const namePattern = new RegExp(`^${category}_monitor_(\\d+)$`);
+    const highestNumber = existingMonitors.reduce((maximum, monitor) => {
+      const match = namePattern.exec(monitor.monitor_name || "");
+      return match ? Math.max(maximum, Number(match[1])) : maximum;
+    }, 0);
 
-    const nextNumber = countRows[0].total + 1;
+    let nextNumber = highestNumber + 1;
+    let monitorName = `${category}_monitor_${nextNumber}`;
+    while (usedKeys.has(monitorName)) {
+      nextNumber += 1;
+      monitorName = `${category}_monitor_${nextNumber}`;
+    }
 
-    const monitorName = `${category}_monitor_${nextNumber}`;
     const monitorKey = monitorName;
     const pairingCode = generatePairingCode();
+    const pairingExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
 
     await db.query(
       `
       INSERT INTO monitors 
       (monitor_name, monitor_key, pairing_code, pairing_expires_at,
        monitor_category, location, status, is_paired)
-      VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 24 HOUR), ?, ?, ?, FALSE)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         monitorName,
         monitorKey,
         pairingCode,
+        pairingExpiresAt,
         category,
         `${category} Display Area`,
         "offline",
+        false,
       ]
     );
 
