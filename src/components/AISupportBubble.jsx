@@ -36,6 +36,7 @@ export default function AISupportBubble() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [templateFlow, setTemplateFlow] = useState(null);
+  const [pendingTemplateUse, setPendingTemplateUse] = useState(null);
   const [messages, setMessages] = useState([
     {
       role: "assistant",
@@ -83,35 +84,29 @@ export default function AISupportBubble() {
       return;
     }
 
+    if (templateFlow?.step === "details") {
+      setTemplateFlow({
+        step: "confirm",
+        kind: templateFlow.kind,
+        details: text,
+      });
+      setMessages([
+        ...nextMessages,
+        {
+          role: "assistant",
+          content:
+            "This will create and save a shared reusable template. Confirm to continue; nothing is saved if you cancel.",
+          confirmation: "create-template",
+        },
+      ]);
+      return;
+    }
+
+    if (templateFlow?.step === "confirm") return;
+
     setLoading(true);
 
     try {
-      if (templateFlow?.step === "details") {
-        const response = await fetch(`${API_BASE_URL}/api/templates/ai-generated`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ kind: templateFlow.kind, details: text }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data?.message || "Unable to create the template.");
-        }
-        setTemplateFlow(null);
-        setMessages((current) => [
-          ...current,
-          {
-            role: "assistant",
-            content: data.message,
-            template: data.template,
-          },
-        ]);
-        return;
-      }
-
       const response = await fetch(`${API_BASE_URL}/ai-support/chat`, {
         method: "POST",
         credentials: "include",
@@ -127,7 +122,7 @@ export default function AISupportBubble() {
       }
       setMessages((current) => [
         ...current,
-        { role: "assistant", content: data.message },
+        { role: "assistant", content: data.message, tool: data.tool },
       ]);
     } catch (error) {
       setMessages((current) => [
@@ -140,6 +135,81 @@ export default function AISupportBubble() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmTemplateCreation = async () => {
+    if (loading || templateFlow?.step !== "confirm") return;
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/templates/ai-generated`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          kind: templateFlow.kind,
+          details: templateFlow.details,
+          confirmed: true,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || "Unable to create the template.");
+      }
+      setTemplateFlow(null);
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: data.message,
+          template: data.template,
+          tool: { label: "Confirmed template creation" },
+        },
+      ]);
+    } catch (error) {
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: error.message || "Unable to create the template.",
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelTemplateCreation = () => {
+    if (loading || templateFlow?.step !== "confirm") return;
+    setTemplateFlow(null);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "assistant",
+        content: "Template creation cancelled. Nothing was saved.",
+      },
+    ]);
+  };
+
+  const confirmTemplateUse = () => {
+    if (!pendingTemplateUse) return;
+    const template = pendingTemplateUse;
+    setPendingTemplateUse(null);
+    navigate("/canvas/new", { state: { template } });
+  };
+
+  const cancelTemplateUse = () => {
+    setPendingTemplateUse(null);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "assistant",
+        content: "Opening a canvas was cancelled. No changes were made.",
+      },
+    ]);
   };
 
   const chooseTemplateKind = (choice) => {
@@ -163,7 +233,15 @@ export default function AISupportBubble() {
       return;
     }
 
-    navigate("/canvas/new", { state: { template } });
+    setPendingTemplateUse(template);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "assistant",
+        content: `Open a new canvas using "${template.name}"? You can review it in the editor before saving.`,
+        confirmation: "use-template",
+      },
+    ]);
   };
 
   return (
@@ -180,12 +258,66 @@ export default function AISupportBubble() {
             </button>
           </header>
 
+          <nav className="ai-support-tools" aria-label="Available AI tools">
+            {getStoredUserRole() === "admin" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setInput("Which screens need attention?")}
+                  disabled={
+                    loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)
+                  }
+                >
+                  Display status
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setInput("Summarise the admin dashboard and recent project activity.")
+                  }
+                  disabled={
+                    loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)
+                  }
+                >
+                  Dashboard summary
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                setInput(
+                  "Suggest three concise ESG captions for an environmental sustainability project."
+                )
+              }
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              ESG captions
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setInput("Suggest three short title options for an ESG campaign.")
+              }
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              ESG titles
+            </button>
+          </nav>
+
           <div className="ai-support-messages" aria-live="polite">
             {messages.map((message, index) => (
               <div
                 className={`ai-support-message ai-support-message--${message.role}`}
                 key={`${message.role}-${index}`}
               >
+                {message.tool?.label && (
+                  <span className="ai-support-tool-badge">
+                    {message.tool.label}
+                    {message.tool.syncedAt &&
+                      ` · synced ${new Date(message.tool.syncedAt).toLocaleTimeString()}`}
+                  </span>
+                )}
                 {message.content}
                 {message.choices && (
                   <div className="ai-support-choices">
@@ -201,11 +333,50 @@ export default function AISupportBubble() {
                     ))}
                   </div>
                 )}
+                {message.confirmation === "create-template" && (
+                  <div className="ai-support-confirmation">
+                    <button
+                      type="button"
+                      onClick={confirmTemplateCreation}
+                      disabled={loading}
+                    >
+                      Confirm and create
+                    </button>
+                    <button
+                      type="button"
+                      className="ai-support-confirmation-cancel"
+                      onClick={cancelTemplateCreation}
+                      disabled={loading}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                {message.confirmation === "use-template" && (
+                  <div className="ai-support-confirmation">
+                    <button
+                      type="button"
+                      onClick={confirmTemplateUse}
+                      disabled={!pendingTemplateUse}
+                    >
+                      Confirm and open
+                    </button>
+                    <button
+                      type="button"
+                      className="ai-support-confirmation-cancel"
+                      onClick={cancelTemplateUse}
+                      disabled={!pendingTemplateUse}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 {message.template && (
                   <button
                     type="button"
                     className="ai-support-template-action"
                     onClick={() => handleUseGeneratedTemplate(message.template)}
+                    disabled={Boolean(pendingTemplateUse)}
                   >
                     {getStoredUserRole() === "admin"
                       ? "View in Manage Templates"
@@ -235,9 +406,22 @@ export default function AISupportBubble() {
               }
               aria-label="Support message"
               maxLength={2000}
-              disabled={loading}
+              disabled={
+                loading ||
+                templateFlow?.step === "confirm" ||
+                Boolean(pendingTemplateUse)
+              }
             />
-            <button type="submit" disabled={loading || !input.trim()} aria-label="Send message">
+            <button
+              type="submit"
+              disabled={
+                loading ||
+                templateFlow?.step === "confirm" ||
+                Boolean(pendingTemplateUse) ||
+                !input.trim()
+              }
+              aria-label="Send message"
+            >
               <HiPaperAirplane size={18} />
             </button>
           </form>
