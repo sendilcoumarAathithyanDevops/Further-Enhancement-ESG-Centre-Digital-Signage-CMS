@@ -118,7 +118,7 @@ function AppWrapper() {
           <Route
             path="/canvas"
             element={
-              <ProtectedRoute allowedRoles={["producer"]}>
+              <ProtectedRoute allowedRoles={["producer", "admin"]}>
                 <MyCanvas />
               </ProtectedRoute>
             }
@@ -127,7 +127,7 @@ function AppWrapper() {
           <Route
             path="/canvas/new"
             element={
-              <ProtectedRoute allowedRoles={["producer"]}>
+              <ProtectedRoute allowedRoles={["producer", "admin"]}>
                 <CanvasEditor />
               </ProtectedRoute>
             }
@@ -136,7 +136,7 @@ function AppWrapper() {
           <Route
             path="/canvas/edit/:canvasId"
             element={
-              <ProtectedRoute allowedRoles={["producer"]}>
+              <ProtectedRoute allowedRoles={["producer", "admin"]}>
                 <CanvasEditor />
               </ProtectedRoute>
             }
@@ -154,7 +154,7 @@ function AppWrapper() {
           <Route
             path="/canvas/view/:canvasId"
             element={
-              <ProtectedRoute allowedRoles={["producer"]}>
+              <ProtectedRoute allowedRoles={["producer", "admin"]}>
                 <CanvasViewer />
               </ProtectedRoute>
             }

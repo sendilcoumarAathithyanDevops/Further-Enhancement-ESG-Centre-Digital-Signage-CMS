@@ -9,6 +9,7 @@ const {
   parseRepeatDays,
   schedulesOverlap,
 } = require("./scheduleRecurrence");
+const { isProjectCategoryCompatible } = require("./categoryPolicy");
 
 const VALID_CATEGORIES = new Set(["environmental", "social", "governance"]);
 const VALID_SCHEDULE_STATUSES = new Set([
@@ -1005,8 +1006,10 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       error.statusCode = 400;
       throw error;
     }
-    if (project.category !== monitorRows[0].monitor_category) {
-      const error = new Error("The project category must match the display category.");
+    if (!isProjectCategoryCompatible(project.category, monitorRows[0].monitor_category)) {
+      const error = new Error(
+        "The project category must match the display category or be Default."
+      );
       error.statusCode = 409;
       throw error;
     }
@@ -1294,8 +1297,10 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       error.statusCode = 400;
       throw error;
     }
-    if (row.monitor_category !== row.category) {
-      const error = new Error("The project category must match the display category.");
+    if (!isProjectCategoryCompatible(row.category, row.monitor_category)) {
+      const error = new Error(
+        "The project category must match the display category or be Default."
+      );
       error.statusCode = 409;
       throw error;
     }

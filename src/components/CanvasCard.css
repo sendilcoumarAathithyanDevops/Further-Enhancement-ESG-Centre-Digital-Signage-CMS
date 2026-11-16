@@ -93,6 +93,11 @@
   color: #9333ea;
 }
 
+.category-pill--default {
+  background: #eef0f2;
+  color: #52606d;
+}
+
 .saved-canvas-card__description-wrap {
   display: flex;
   flex: 1;

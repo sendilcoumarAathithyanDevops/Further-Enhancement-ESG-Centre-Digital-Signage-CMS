@@ -21,6 +21,18 @@ const CATEGORY_OPTIONS = [
   { value: "social", label: "Social" },
   { value: "governance", label: "Governance" },
 ];
+const ADMIN_CATEGORY_OPTIONS = [
+  ...CATEGORY_OPTIONS,
+  { value: "default", label: "Default" },
+];
+
+function getStoredUserRole() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}").role || "";
+  } catch {
+    return "";
+  }
+}
 
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1080;
@@ -153,11 +165,22 @@ function CanvasEditor() {
   const isEditing = Boolean(canvasId);
 
   const selectedTemplateData = location.state?.template || null;
+  const isAdmin = getStoredUserRole() === "admin";
 
   const cameFromShared = location.state?.from === "shared";
+  const cameFromAdminProjects = location.state?.fromAdminProjects === true;
 
-  const backPath = cameFromShared ? "/shared" : "/canvas";
-  const backLabel = cameFromShared ? "← Back to Shared with Me" : "← Back to My Canvas";
+  const backPath = cameFromShared
+    ? "/shared"
+    : cameFromAdminProjects
+      ? "/manage-projects"
+      : "/canvas";
+  const backLabel = cameFromShared
+    ? "← Back to Shared with Me"
+    : cameFromAdminProjects
+      ? "← Back to Manage Projects"
+      : "← Back to My Canvas";
+  const categoryOptions = isAdmin ? ADMIN_CATEGORY_OPTIONS : CATEGORY_OPTIONS;
 
   const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
@@ -839,7 +862,7 @@ function CanvasEditor() {
 
     if (!projectName.trim()) errors.projectName = "Project name is required.";
     if (!description.trim()) errors.description = "Project description is required.";
-    if (!CATEGORY_OPTIONS.some((option) => option.value === category)) {
+    if (!categoryOptions.some((option) => option.value === category)) {
       errors.category = "Please select a category.";
     }
     if (pages.length === 0) errors.pages = "The project must have at least one page.";
@@ -908,7 +931,7 @@ function CanvasEditor() {
 
       temporaryUploadsRef.current.clear();
       setIsDirty(false);
-      navigate(backPath, {
+      navigate(isAdmin ? "/canvas" : backPath, {
         replace: true,
         state: {
           successMessage: isEditing
@@ -1027,7 +1050,7 @@ function CanvasEditor() {
               aria-invalid={Boolean(validationErrors.category)}
             >
               <option value="">Select a category</option>
-              {CATEGORY_OPTIONS.map((option) => (
+              {categoryOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
