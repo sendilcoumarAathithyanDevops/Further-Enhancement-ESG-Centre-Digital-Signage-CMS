@@ -3,8 +3,19 @@ import EditorModal from "./EditorModal";
 
 function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
   const initialStyle = initialComponent?.style || {};
+  const isTextArea = mode === "textArea";
+  const defaultFontSize = isTextArea
+    ? 18
+    : initialStyle.textType === "subtitle"
+      ? 22
+      : 32;
+  const savedFontSize = Number(initialStyle.fontSize);
+  const initialFontSize = Number.isFinite(savedFontSize) && savedFontSize > 0
+    ? Math.min(120, Math.max(8, savedFontSize))
+    : defaultFontSize;
   const [content, setContent] = useState(initialComponent?.contentText || "");
   const [textType, setTextType] = useState(initialStyle.textType || "title");
+  const [fontSize, setFontSize] = useState(initialFontSize);
   const [color, setColor] = useState(initialStyle.color || "#000000");
   const [backgroundColor, setBackgroundColor] = useState(
     initialStyle.backgroundColor || "#ffffff"
@@ -13,13 +24,12 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
     initialStyle.backgroundOpacity ?? 0.8
   );
   const [error, setError] = useState("");
-  const isTextArea = mode === "textArea";
   const characterLimit = isTextArea ? 1200 : 180;
 
   const stylePreview = useMemo(() => {
     if (isTextArea) {
       return {
-        fontSize: 18,
+        fontSize,
         color,
         backgroundColor,
         opacity: 1,
@@ -27,11 +37,11 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
     }
 
     return {
-      fontSize: textType === "title" ? 32 : 22,
+      fontSize,
       fontWeight: 700,
       color,
     };
-  }, [backgroundColor, color, isTextArea, textType]);
+  }, [backgroundColor, color, fontSize, isTextArea]);
 
   const submit = () => {
     const trimmed = content.trim();
@@ -45,7 +55,7 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
       style: isTextArea
         ? {
           widgetKind: "textArea",
-          fontSize: 18,
+          fontSize,
           fontWeight: 400,
           color,
           backgroundColor,
@@ -56,7 +66,7 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
         : {
           widgetKind: "text",
           textType,
-          fontSize: textType === "title" ? 32 : 22,
+          fontSize,
           fontWeight: 700,
           color,
           textAlign: initialStyle.textAlign || "left",
@@ -69,8 +79,8 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
       title={isTextArea ? "Edit Text Area" : "Add Text"}
       description={
         isTextArea
-          ? "The text area uses a fixed 18px font size for TV readability."
-          : "Choose a fixed Title or Subtitle style designed for a 55-inch TV."
+          ? "Adjust the text size for your display."
+          : "Choose a Title or Subtitle preset, then adjust its size."
       }
       onClose={onClose}
       footer={
@@ -89,7 +99,14 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
       {!isTextArea && (
         <label className="editor-modal-field">
           <span>Text style</span>
-          <select value={textType} onChange={(event) => setTextType(event.target.value)}>
+          <select
+            value={textType}
+            onChange={(event) => {
+              const nextTextType = event.target.value;
+              setTextType(nextTextType);
+              setFontSize(nextTextType === "title" ? 32 : 22);
+            }}
+          >
             <option value="title">Title — 32px Bold</option>
             <option value="subtitle">Subtitle — 22px Bold</option>
           </select>
@@ -116,6 +133,19 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
           />
         )}
         <small>{content.length}/{characterLimit} characters</small>
+      </label>
+
+      <label className="editor-modal-field">
+        <span>Font size: {fontSize}px</span>
+        <input
+          type="range"
+          min="8"
+          max="120"
+          step="1"
+          value={fontSize}
+          aria-label="Font size"
+          onChange={(event) => setFontSize(Number(event.target.value))}
+        />
       </label>
 
       <div className="editor-modal-grid">
