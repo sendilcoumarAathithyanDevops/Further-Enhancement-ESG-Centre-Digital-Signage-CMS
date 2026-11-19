@@ -489,6 +489,7 @@
 .scheduler-category-pill--environmental { color: #126236; background: #e3f7ea; }
 .scheduler-category-pill--social { color: #245a92; background: #e7f1ff; }
 .scheduler-category-pill--governance { color: #6e4c00; background: #fff1c9; }
+.scheduler-category-pill--default { color: #a76416; background: #fff1df; }
 .scheduler-schedule-status--active { color: #126236; background: #e3f7ea; }
 .scheduler-schedule-status--cancelled { color: #777; background: #eeeeee; }
 

@@ -20,6 +20,7 @@ const CATEGORY_OPTIONS = [
     { value: "environmental", label: "Environmental" },
     { value: "social", label: "Social" },
     { value: "governance", label: "Governance" },
+    { value: "default", label: "Default" },
 ];
 
 const CANVAS_WIDTH = 1920;

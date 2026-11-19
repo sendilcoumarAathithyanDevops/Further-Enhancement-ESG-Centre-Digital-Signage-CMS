@@ -5,6 +5,7 @@ import {
   FiFolder,
   FiGlobe,
   FiMonitor,
+  FiPlus,
   FiRefreshCw,
   FiSearch,
   FiShield,
@@ -21,11 +22,14 @@ const CATEGORY_META = {
   environmental: { label: "Environmental", emoji: "🌱" },
   social: { label: "Social", emoji: "👥" },
   governance: { label: "Governance", emoji: "🏛️" },
+  default: { label: "Default", emoji: "📁" },
 };
 
-function formatDate(value) {
-  if (!value) return "—";
-  const date = new Date(value);
+function formatDate(value, fallbackValue) {
+  let date = value ? new Date(value) : new Date(Number.NaN);
+  if (Number.isNaN(date.getTime()) && fallbackValue) {
+    date = new Date(fallbackValue);
+  }
   if (Number.isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-SG", {
     day: "2-digit",
@@ -157,13 +161,22 @@ export default function ManageProjects() {
         <div>
           <span className="manage-users-eyebrow">Administrator workspace</span>
           <h1>Published Projects</h1>
-          <p>Projects published by producers will appear here.</p>
+          <p>Create projects or manage the published project library.</p>
           <span className="manage-users-count-pill">
             {totalPublished} published project{totalPublished === 1 ? "" : "s"}
           </span>
         </div>
 
         <div className="manage-users-header__actions">
+          <button
+            type="button"
+            className="manage-users-button manage-users-button--primary"
+            onClick={() =>
+              navigate("/canvas/new", { state: { fromAdminProjects: true } })
+            }
+          >
+            <FiPlus /> Create Project
+          </button>
           <button
             type="button"
             className="manage-users-button manage-users-button--secondary"
@@ -274,6 +287,7 @@ export default function ManageProjects() {
               <option value="environmental">Environmental</option>
               <option value="social">Social</option>
               <option value="governance">Governance</option>
+              <option value="default">Default</option>
             </select>
           </label>
 
@@ -316,7 +330,9 @@ export default function ManageProjects() {
                     <td data-label="Category">
                       <CategoryBadge category={p.category} />
                     </td>
-                    <td data-label="Published Date">{formatDate(p.updated_at)}</td>
+                    <td data-label="Published Date">
+                      {formatDate(p.updated_at, p.created_at)}
+                    </td>
                     <td data-label="Actions">
                       <div className="manage-users-row-actions">
                         <button

@@ -191,6 +191,16 @@
   color: #7a3ea1;
 }
 
+.category-badge.default {
+  background: #eef0f2;
+  color: #52606d;
+}
+
+.category-badge.default {
+  background: #eef0f2;
+  color: #52606d;
+}
+
 /* ── 2x2 preview grid ─────────────────────────────────── */
 .preview-wall__grid {
   display: grid;

@@ -53,7 +53,7 @@ function CanvasCard({
             </button>
           </h2>
           <span className={`category-pill category-pill--${project.category}`}>
-            {project.category}
+            {project.category === "default" ? "Default" : project.category}
           </span>
         </div>
 
