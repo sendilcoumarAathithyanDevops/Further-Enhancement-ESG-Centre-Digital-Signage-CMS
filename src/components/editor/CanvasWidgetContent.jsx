@@ -6,6 +6,9 @@ import "./CanvasWidgetContent.css";
 function CanvasWidgetContent({ component, readOnly = false }) {
   const style = component?.style || {};
   const widgetKind = style.widgetKind || component.type;
+  const padding = Number.isFinite(Number(style.padding))
+    ? Number(style.padding)
+    : 24;
 
   const videoRef = useRef(null);
   const [isVideoWaiting, setIsVideoWaiting] = useState(false);
@@ -136,15 +139,21 @@ function CanvasWidgetContent({ component, readOnly = false }) {
         className="canvas-widget-content__text-area"
         style={{
           color: style.color || "#000000",
+          fontWeight: style.fontWeight || 400,
+          fontFamily: style.fontFamily || "Arial, sans-serif",
+          fontSize: style.fontSize ? `${(Number(style.fontSize) / 1080) * 100}cqh` : undefined,
           backgroundColor: hexToRgba(
             style.backgroundColor || "#ffffff",
             style.backgroundOpacity ?? 0.8
           ),
-          padding: `${((Number(style.padding) || 24) / 1080) * 100}cqh`,
+          padding: `${(padding / 1080) * 100}cqh`,
           textAlign: style.textAlign || "left",
+          lineHeight: Number(style.lineHeight) || 1.4,
         }}
       >
-        {component.contentText || "Enter text…"}
+        <span className="canvas-widget-content__text-inner">
+          {component.contentText || "Enter text…"}
+        </span>
       </div>
     );
   }
@@ -172,10 +181,19 @@ function CanvasWidgetContent({ component, readOnly = false }) {
       style={{
         color: style.color || "#000000",
         fontWeight: style.fontWeight || 700,
+        fontFamily: style.fontFamily || "Arial, sans-serif",
         textAlign: style.textAlign || "left",
+        lineHeight: Number(style.lineHeight) || 1.2,
+        padding: `${(padding / 1080) * 100}cqh`,
+        backgroundColor: hexToRgba(
+          style.backgroundColor || "#ffffff",
+          style.backgroundOpacity ?? 0
+        ),
       }}
     >
-      {component.contentText || "Text"}
+      <span className="canvas-widget-content__text-inner">
+        {component.contentText || "Text"}
+      </span>
     </div>
   );
 }

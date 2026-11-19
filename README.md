@@ -24,6 +24,14 @@ Use the following fallback database accounts to test the application:
 
 Open the login page at [http://localhost:3000](http://localhost:3000).
 
+## Reusable ESG templates
+
+Administrators can open **Manage Templates** and choose **Create ESG Template** to design a reusable display layout. Select Environmental, Social, or Governance, add pages and widgets in the template editor, then save it. The active template is available to the team from **My Canvas → Add New Canvas**.
+
+## Pre-publish layout validation
+
+When publishing a draft from **My Canvas**, the CMS checks for missing pages or widget content/media, invalid widget geometry, and widgets outside the display canvas. These blocking issues must be fixed in the editor before publishing. Potential overlaps, text that may be too small, safe-area conflicts, and empty pages are shown as warnings; review them and confirm **Publish anyway** when intentional. Choose **Preview content** to inspect each saved page, then return to the publish review to continue. The backend repeats the blocking checks during publishing, so the validation cannot be bypassed by calling the publish endpoint directly. Unpublishing is unchanged.
+
 ## MySQL configuration and local failover
 
 The backend reads database settings from `Backend/.env`. The primary connection can point to Railway or another MySQL server. To use a local MySQL database when the primary is unavailable, add these optional settings:

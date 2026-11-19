@@ -1,5 +1,15 @@
 import { useMemo, useState } from "react";
 import EditorModal from "./EditorModal";
+import { hexToRgba } from "../../utils/media";
+
+const FONT_FAMILIES = [
+  { value: "Arial, sans-serif", label: "Arial" },
+  { value: "Georgia, serif", label: "Georgia" },
+  { value: "\"Trebuchet MS\", sans-serif", label: "Trebuchet MS" },
+  { value: "system-ui, sans-serif", label: "System" },
+];
+const FONT_WEIGHTS = ["400", "500", "600", "700"];
+const TEXT_ALIGNMENTS = ["left", "center", "right"];
 
 function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
   const initialStyle = initialComponent?.style || {};
@@ -21,27 +31,60 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
     initialStyle.backgroundColor || "#ffffff"
   );
   const [backgroundOpacity, setBackgroundOpacity] = useState(
-    initialStyle.backgroundOpacity ?? 0.8
+    initialStyle.backgroundOpacity ?? (isTextArea ? 0.8 : 0)
+  );
+  const [fontWeight, setFontWeight] = useState(
+    FONT_WEIGHTS.includes(String(initialStyle.fontWeight))
+      ? String(initialStyle.fontWeight)
+      : isTextArea ? "400" : "700"
+  );
+  const [fontFamily, setFontFamily] = useState(
+    FONT_FAMILIES.some((option) => option.value === initialStyle.fontFamily)
+      ? initialStyle.fontFamily
+      : FONT_FAMILIES[0].value
+  );
+  const [textAlign, setTextAlign] = useState(
+    TEXT_ALIGNMENTS.includes(initialStyle.textAlign)
+      ? initialStyle.textAlign
+      : "left"
+  );
+  const [lineHeight, setLineHeight] = useState(
+    Math.min(2, Math.max(1, Number(initialStyle.lineHeight) || (isTextArea ? 1.4 : 1.2)))
+  );
+  const savedPadding = Number(initialStyle.padding);
+  const [padding, setPadding] = useState(
+    Math.min(48, Math.max(0, Number.isFinite(savedPadding) ? savedPadding : 24))
   );
   const [error, setError] = useState("");
   const characterLimit = isTextArea ? 1200 : 180;
 
-  const stylePreview = useMemo(() => {
-    if (isTextArea) {
-      return {
-        fontSize,
-        color,
-        backgroundColor,
-        opacity: 1,
-      };
-    }
-
-    return {
+  const stylePreview = useMemo(
+    () => ({
+      display: "flex",
+      alignItems: "center",
       fontSize,
-      fontWeight: 700,
+      fontWeight,
+      fontFamily,
       color,
-    };
-  }, [backgroundColor, color, fontSize, isTextArea]);
+      textAlign,
+      lineHeight,
+      padding: `${padding}px`,
+      backgroundColor: Number(backgroundOpacity) > 0
+        ? hexToRgba(backgroundColor, Number(backgroundOpacity))
+        : "transparent",
+    }),
+    [
+      backgroundColor,
+      backgroundOpacity,
+      color,
+      fontFamily,
+      fontSize,
+      fontWeight,
+      lineHeight,
+      padding,
+      textAlign,
+    ]
+  );
 
   const submit = () => {
     const trimmed = content.trim();
@@ -56,20 +99,27 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
         ? {
           widgetKind: "textArea",
           fontSize,
-          fontWeight: 400,
+          fontWeight,
+          fontFamily,
           color,
           backgroundColor,
           backgroundOpacity: Number(backgroundOpacity),
-          padding: 24,
-          textAlign: initialStyle.textAlign || "left",
+          padding,
+          textAlign,
+          lineHeight,
         }
         : {
           widgetKind: "text",
           textType,
           fontSize,
-          fontWeight: 700,
+          fontWeight,
+          fontFamily,
           color,
-          textAlign: initialStyle.textAlign || "left",
+          backgroundColor,
+          backgroundOpacity: Number(backgroundOpacity),
+          padding,
+          textAlign,
+          lineHeight,
         },
     });
   };
@@ -79,8 +129,8 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
       title={isTextArea ? "Edit Text Area" : "Add Text"}
       description={
         isTextArea
-          ? "Adjust the text size for your display."
-          : "Choose a Title or Subtitle preset, then adjust its size."
+          ? "Set the typography, alignment, and text box appearance."
+          : "Choose a title or subtitle, then tune its typography and appearance."
       }
       onClose={onClose}
       footer={
@@ -137,15 +187,28 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
 
       <label className="editor-modal-field">
         <span>Font size: {fontSize}px</span>
-        <input
-          type="range"
-          min="8"
-          max="120"
-          step="1"
-          value={fontSize}
-          aria-label="Font size"
-          onChange={(event) => setFontSize(Number(event.target.value))}
-        />
+        <div className="text-widget-size-controls">
+          <input
+            type="range"
+            min="8"
+            max="120"
+            step="1"
+            value={fontSize}
+            aria-label="Font size"
+            onChange={(event) => setFontSize(Number(event.target.value))}
+          />
+          <input
+            type="number"
+            min="8"
+            max="120"
+            step="1"
+            value={fontSize}
+            aria-label="Font size in pixels"
+            onChange={(event) =>
+              setFontSize(Math.min(120, Math.max(8, Number(event.target.value) || 8)))
+            }
+          />
+        </div>
       </label>
 
       <div className="editor-modal-grid">
@@ -154,19 +217,62 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
           <input type="color" value={color} onChange={(event) => setColor(event.target.value)} />
         </label>
 
-        {isTextArea && (
-          <label className="editor-modal-field">
-            <span>Box colour</span>
-            <input
-              type="color"
-              value={backgroundColor}
-              onChange={(event) => setBackgroundColor(event.target.value)}
-            />
-          </label>
-        )}
+        <label className="editor-modal-field">
+          <span>Box colour</span>
+          <input
+            type="color"
+            value={backgroundColor}
+            onChange={(event) => setBackgroundColor(event.target.value)}
+          />
+        </label>
       </div>
 
-      {isTextArea && (
+      <div className="editor-modal-grid">
+        <label className="editor-modal-field">
+          <span>Font weight</span>
+          <select value={fontWeight} onChange={(event) => setFontWeight(event.target.value)}>
+            <option value="400">Regular</option>
+            <option value="500">Medium</option>
+            <option value="600">Semi-bold</option>
+            <option value="700">Bold</option>
+          </select>
+        </label>
+        <label className="editor-modal-field">
+          <span>Font family</span>
+          <select value={fontFamily} onChange={(event) => setFontFamily(event.target.value)}>
+            {FONT_FAMILIES.map((font) => (
+              <option key={font.value} value={font.value}>{font.label}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="editor-modal-grid">
+        <label className="editor-modal-field">
+          <span>Text alignment</span>
+          <select value={textAlign} onChange={(event) => setTextAlign(event.target.value)}>
+            {TEXT_ALIGNMENTS.map((alignment) => (
+              <option key={alignment} value={alignment}>
+                {alignment[0].toUpperCase() + alignment.slice(1)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="editor-modal-field">
+          <span>Line spacing: {Number(lineHeight).toFixed(2)}</span>
+          <input
+            type="range"
+            min="1"
+            max="2"
+            step="0.05"
+            value={lineHeight}
+            aria-label="Line spacing"
+            onChange={(event) => setLineHeight(Number(event.target.value))}
+          />
+        </label>
+      </div>
+
+      <div className="editor-modal-grid">
         <label className="editor-modal-field">
           <span>Box opacity: {Math.round(Number(backgroundOpacity) * 100)}%</span>
           <input
@@ -178,10 +284,21 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
             onChange={(event) => setBackgroundOpacity(event.target.value)}
           />
         </label>
-      )}
+        <label className="editor-modal-field">
+          <span>Box padding: {padding}px</span>
+          <input
+            type="range"
+            min="0"
+            max="48"
+            step="2"
+            value={padding}
+            onChange={(event) => setPadding(Number(event.target.value))}
+          />
+        </label>
+      </div>
 
       <div className="text-widget-preview" style={stylePreview}>
-        {content || (isTextArea ? "Text area preview" : "Text preview")}
+        <span>{content || (isTextArea ? "Text area preview" : "Text preview")}</span>
       </div>
     </EditorModal>
   );

@@ -250,6 +250,14 @@ function AppWrapper() {
             }
           />
 
+          <Route
+            path="/manage-templates/new"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <TemplateEditor />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/manage-templates/edit/:templateId"

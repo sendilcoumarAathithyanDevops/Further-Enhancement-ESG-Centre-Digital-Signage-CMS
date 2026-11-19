@@ -11,6 +11,13 @@ const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_BACKGROUND_SIZE = 20 * 1024 * 1024;
 const DEFAULT_CANVAS_WIDTH = 1920;
 const DEFAULT_CANVAS_HEIGHT = 1080;
+const BACKGROUND_COLOR_PRESETS = [
+  { label: "White", value: "#FFFFFF" },
+  { label: "Soft green", value: "#EAF4EA" },
+  { label: "RP green", value: "#21634D" },
+  { label: "Sky blue", value: "#DCEFFC" },
+  { label: "Charcoal", value: "#1F2937" },
+];
 
 function validHex(value) {
   return /^#[0-9a-fA-F]{6}$/.test(value);
@@ -284,13 +291,35 @@ function BackgroundModal({ page, projectName, category, canvasWidth = DEFAULT_CA
             <span>PNG, JPG, JPEG, or WebP · Maximum 20 MB</span>
           </label>
 
-          <label className="editor-modal-field">
+          <div className="editor-modal-field">
             <span>Background colour</span>
+            <div
+              className="background-color-presets"
+              role="group"
+              aria-label="Background colour presets"
+            >
+              {BACKGROUND_COLOR_PRESETS.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  className={colour.toUpperCase() === preset.value ? "is-selected" : ""}
+                  aria-label={`Use ${preset.label} background`}
+                  aria-pressed={colour.toUpperCase() === preset.value}
+                  onClick={() => {
+                    setColour(preset.value);
+                    setColourOpacity(1);
+                  }}
+                >
+                  <span style={{ backgroundColor: preset.value }} aria-hidden="true" />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
             <div className="colour-input-row">
-              <input type="color" value={validHex(colour) ? colour : "#ffffff"} onChange={(event) => setColour(event.target.value)} />
+              <input type="color" value={validHex(colour) ? colour : "#ffffff"} aria-label="Background colour picker" onChange={(event) => setColour(event.target.value)} />
               <input type="text" value={colour} pattern="#[0-9a-fA-F]{6}" onChange={(event) => setColour(event.target.value)} aria-label="Background HEX colour" />
             </div>
-          </label>
+          </div>
 
           <label className="editor-modal-field">
             <span>Colour opacity: {Math.round(Number(colourOpacity) * 100)}%</span>

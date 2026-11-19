@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./ManageTemplates.css";
 import CanvasPreview from "../components/CanvasPreview";
-import { FiRefreshCw } from "react-icons/fi";
+import { FiPlus, FiRefreshCw } from "react-icons/fi";
 
 const API_BASE_URL =
     process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
 
 function ManageTemplates() {
     const navigate = useNavigate();
+    const location = useLocation();
 
     const [templates, setTemplates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
     const [refreshing, setRefreshing] = useState(false);
+    const [successMessage, setSuccessMessage] = useState(
+        location.state?.successMessage || ""
+    );
 
     const loadTemplates = useCallback(
         async ({ refresh = false } = {}) => {
@@ -98,7 +102,7 @@ function ManageTemplates() {
                     <h1>Manage Templates</h1>
 
                     <p>
-                        Edit the existing canvas templates available to producers.
+                        Create reusable Environmental, Social, and Governance display templates for your team.
                     </p>
 
                     <span className="manage-templates-count-pill">
@@ -107,6 +111,14 @@ function ManageTemplates() {
                 </div>
 
                 <div className="manage-templates-header__actions">
+                    <button
+                        type="button"
+                        className="manage-templates-button manage-templates-button--create"
+                        onClick={() => navigate("/manage-templates/new")}
+                    >
+                        <FiPlus />
+                        Create ESG Template
+                    </button>
                     <button
                         type="button"
                         className="manage-templates-button manage-users-button--secondary"
@@ -120,6 +132,12 @@ function ManageTemplates() {
                     </button>
                 </div>
             </header>
+
+            {successMessage && (
+                <div className="manage-templates-message manage-templates-message--success" role="status">
+                    {successMessage}
+                </div>
+            )}
 
             {errorMessage && (
                 <div

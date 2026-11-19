@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import EditorModal from "./EditorModal";
 import { API_BASE_URL, resolveMediaUrl } from "../../utils/media";
 import "./MediaModals.css";
@@ -13,20 +13,34 @@ function normaliseDelaySeconds(value) {
 }
 
 function VideoUploadModal({ onClose, onDone, initialComponent }) {
+  const initialStyle = initialComponent?.style || {};
+  const videoPreviewRef = useRef(null);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(
     initialComponent?.filePath ? resolveMediaUrl(initialComponent.filePath) : ""
   );
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
-  const [volume, setVolume] = useState(initialComponent?.style?.volume ?? 1);
+  const [volume, setVolume] = useState(initialStyle.volume ?? 1);
+  const [autoPlay, setAutoPlay] = useState(initialStyle.autoPlay !== false);
+  const [loop, setLoop] = useState(initialStyle.loop !== false);
+  const [muted, setMuted] = useState(initialStyle.muted !== false);
+  const [objectFit, setObjectFit] = useState(initialStyle.objectFit || "contain");
   const [delaySeconds, setDelaySeconds] = useState(
-    normaliseDelaySeconds(initialComponent?.style?.delaySeconds ?? 0)
+    normaliseDelaySeconds(initialStyle.delaySeconds ?? 0)
   );
+  const [removeRequested, setRemoveRequested] = useState(false);
 
   useEffect(() => () => {
     if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  useEffect(() => {
+    if (!videoPreviewRef.current) return;
+    videoPreviewRef.current.volume = Number(volume) || 0;
+    videoPreviewRef.current.muted = muted;
+    videoPreviewRef.current.loop = loop;
+  }, [loop, muted, previewUrl, volume]);
 
   const selectFile = (selectedFile) => {
     setError("");
@@ -43,6 +57,7 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
     if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     setFile(selectedFile);
     setPreviewUrl(URL.createObjectURL(selectedFile));
+    setRemoveRequested(false);
   };
 
   const upload = async () => {
@@ -52,8 +67,29 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
       setDelaySeconds(safeDelaySeconds);
     }
 
+    if (removeRequested && !file) {
+      onDone({
+        path: null,
+        volume,
+        delaySeconds: safeDelaySeconds,
+        autoPlay,
+        loop,
+        muted,
+        objectFit,
+      });
+      return;
+    }
+
     if (!file && initialComponent?.filePath) {
-      onDone({ path: initialComponent.filePath, volume, delaySeconds: safeDelaySeconds });
+      onDone({
+        path: initialComponent.filePath,
+        volume,
+        delaySeconds: safeDelaySeconds,
+        autoPlay,
+        loop,
+        muted,
+        objectFit,
+      });
       return;
     }
     if (!file) {
@@ -73,7 +109,15 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Unable to upload the video.");
-      onDone({ path: data.file.path, volume, delaySeconds: safeDelaySeconds });
+      onDone({
+        path: data.file.path,
+        volume,
+        delaySeconds: safeDelaySeconds,
+        autoPlay,
+        loop,
+        muted,
+        objectFit,
+      });
     } catch (uploadError) {
       setError(uploadError.message || "Unable to upload the video.");
     } finally {
@@ -84,12 +128,12 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
   return (
     <EditorModal
       title={initialComponent ? "Replace Video" : "Add Video"}
-      description="Videos autoplay, replay, and remain muted so TV browsers can play them automatically."
+      description="Choose playback behavior and a video fit mode for the display."
       onClose={uploading ? () => {} : onClose}
       footer={
         <>
           <button type="button" className="editor-modal-button editor-modal-button--secondary" onClick={onClose} disabled={uploading}>Cancel</button>
-          <button type="button" className="editor-modal-button editor-modal-button--primary" onClick={upload} disabled={uploading || (!file && !initialComponent?.filePath)}>
+          <button type="button" className="editor-modal-button editor-modal-button--primary" onClick={upload} disabled={uploading || (!file && !initialComponent?.filePath && !removeRequested)}>
             {uploading ? "Uploading…" : "Done"}
           </button>
         </>
@@ -108,20 +152,54 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
 
       {previewUrl && (
         <div className="video-upload-preview">
-          <video src={previewUrl} controls muted playsInline />
+          <video
+            ref={videoPreviewRef}
+            src={previewUrl}
+            controls
+            autoPlay={autoPlay}
+            muted={muted}
+            loop={loop}
+            playsInline
+            style={{ objectFit }}
+          />
           <div className="video-settings">
-            <label>
-              Volume: {Math.round(volume * 100)}%
-            </label>
+            <div className="editor-modal-grid">
+              <label className="editor-modal-field">
+                <span>Video fitting</span>
+                <select value={objectFit} onChange={(event) => setObjectFit(event.target.value)}>
+                  <option value="contain">Fit video</option>
+                  <option value="cover">Fill frame</option>
+                </select>
+              </label>
+              <label className="editor-modal-field">
+                <span>Volume: {Math.round(Number(volume) * 100)}%</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume}
+                  aria-label="Video volume"
+                  onChange={(event) => setVolume(Number(event.target.value))}
+                />
+              </label>
+            </div>
 
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={volume}
-              onChange={(e) => setVolume(Number(e.target.value))}
-            />
+            <fieldset className="video-playback-options">
+              <legend>Playback options</legend>
+              <label>
+                <input type="checkbox" checked={autoPlay} onChange={(event) => setAutoPlay(event.target.checked)} />
+                <span>Play automatically</span>
+              </label>
+              <label>
+                <input type="checkbox" checked={loop} onChange={(event) => setLoop(event.target.checked)} />
+                <span>Loop video</span>
+              </label>
+              <label>
+                <input type="checkbox" checked={muted} onChange={(event) => setMuted(event.target.checked)} />
+                <span>Mute video</span>
+              </label>
+            </fieldset>
 
             <div className="video-delay-field">
               <label htmlFor="video-delay-seconds">
@@ -158,7 +236,19 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
             if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
             setFile(null);
             setPreviewUrl("");
-          }}>Remove video</button>
+            setRemoveRequested(Boolean(initialComponent?.filePath));
+          }}>{removeRequested ? "Video will be removed" : "Remove video"}</button>
+        </div>
+      )}
+      {removeRequested && (
+        <div className="video-removal-notice" role="status">
+          This video will be removed when you select Done.
+          <button type="button" onClick={() => {
+            setPreviewUrl(resolveMediaUrl(initialComponent.filePath));
+            setRemoveRequested(false);
+          }}>
+            Keep current video
+          </button>
         </div>
       )}
     </EditorModal>

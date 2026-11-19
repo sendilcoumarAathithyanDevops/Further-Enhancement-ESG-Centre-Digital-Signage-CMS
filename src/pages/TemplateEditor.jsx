@@ -23,6 +23,10 @@ const CATEGORY_OPTIONS = [
     { value: "default", label: "Default" },
 ];
 
+const ESG_CATEGORY_OPTIONS = CATEGORY_OPTIONS.filter((option) =>
+    ["environmental", "social", "governance"].includes(option.value)
+);
+
 const CANVAS_WIDTH = 1920;
 const CANVAS_HEIGHT = 1080;
 
@@ -183,6 +187,15 @@ function TemplateEditor() {
     }, [isEditing, pages, originalPages]);
 
     useEffect(() => {
+        if (isEditing || pages.length > 0) return;
+
+        const firstPage = createPageFromTemplate("blank", 1);
+        setPages([firstPage]);
+        setSelectedPageId(firstPage.clientId);
+        setCategory("environmental");
+    }, [isEditing, pages.length]);
+
+    useEffect(() => {
         if (!isEditing) return undefined;
 
         const controller = new AbortController();
@@ -287,22 +300,84 @@ function TemplateEditor() {
         markDirty();
     };
 
-    const handleReplaceImage = ({ paths }) => {
+    const handleReplaceImage = ({ paths, settings }) => {
         if (!modal?.componentId) return;
-
         const newPath = paths[0];
         if (!newPath) return;
 
+        const component = findSelectedComponent(modal.componentId);
+        if (!component) return;
         temporaryUploadsRef.current.add(newPath);
+        const style = component.style || {};
+        const imagePaths =
+            Array.isArray(style.imagePaths) && style.imagePaths.length > 0
+                ? [...style.imagePaths]
+                : component.filePath
+                    ? [component.filePath]
+                    : [];
+        const imageIndex = Math.max(
+            0,
+            Math.min(Number(modal.imageIndex) || 0, imagePaths.length - 1)
+        );
+        if (imageIndex < 0) return;
 
-        updateWidget(modal.componentId, {
-            filePath: newPath,
-            style: {
-                ...modal.initialComponent.style,
-                imagePaths: [newPath],
-            },
+        const imageSettings = Array.isArray(style.imageSettings)
+            ? [...style.imageSettings]
+            : imagePaths.map(() => ({}));
+        const replacementSettings = settings?.[0] || {};
+        imagePaths[imageIndex] = newPath;
+        imageSettings[imageIndex] = {
+            ...(imageSettings[imageIndex] || {}),
+            ...replacementSettings,
+        };
+        const nextStyle = {
+            ...style,
+            imagePaths,
+            imageSettings,
+        };
+        if (imageIndex === 0) {
+            Object.assign(nextStyle, {
+                aspectRatioChoice: replacementSettings.aspectRatioChoice || style.aspectRatioChoice,
+                aspectRatio: replacementSettings.aspectRatio || style.aspectRatio,
+                objectFit: replacementSettings.objectFit || style.objectFit,
+                focusX: replacementSettings.focusX ?? style.focusX,
+                focusY: replacementSettings.focusY ?? style.focusY,
+                lockAspectRatio: true,
+            });
+        }
+
+        const nextPages = pages.map((page) => {
+            if (page.clientId !== selectedPageId) return page;
+            return {
+                ...page,
+                components: page.components.map((item) => {
+                    if (widgetKey(item) !== modal.componentId) return item;
+                    if (imageIndex !== 0) {
+                        return { ...item, filePath: imagePaths[0], style: nextStyle };
+                    }
+
+                    const ratio = Number(replacementSettings.aspectRatio) || Number(style.aspectRatio) || 16 / 9;
+                    const currentWidth = Number(item.width) || 610;
+                    const { width, height } = fitSizeForRatio(
+                        Math.min(currentWidth, CANVAS_WIDTH),
+                        MAX_Y - MIN_Y,
+                        ratio
+                    );
+                    return {
+                        ...item,
+                        filePath: imagePaths[0],
+                        width,
+                        height,
+                        positionX: clamp(Number(item.positionX) || 0, 0, CANVAS_WIDTH - width),
+                        positionY: clamp(Number(item.positionY) || MIN_Y, MIN_Y, MAX_Y - height),
+                        style: nextStyle,
+                    };
+                }),
+            };
         });
-
+        setPages(nextPages);
+        markDirty();
+        cleanupUnusedTemporaryPaths(nextPages);
         setModal(null);
     };
 
@@ -488,7 +563,7 @@ function TemplateEditor() {
         if (kind === "text" || kind === "textArea") {
             setModal({ type: kind, componentId: id, initialComponent: component });
         } else if (component.type === "image") {
-            setModal({ type: "replaceImage", componentId: id, initialComponent: component, });
+            setModal({ type: "imageSettings", componentId: id, initialComponent: component });
         } else if (component.type === "video") {
             setModal({ type: "video", componentId: id, initialComponent: component });
         }
@@ -663,7 +738,7 @@ function TemplateEditor() {
         setModal(null);
     };
 
-    const handleVideoDone = ({ path, volume, delaySeconds }) => {
+    const handleVideoDone = ({ path, volume, delaySeconds, autoPlay, loop, muted, objectFit }) => {
         if (path && path !== modal.initialComponent?.filePath) {
             temporaryUploadsRef.current.add(path);
         }
@@ -674,10 +749,11 @@ function TemplateEditor() {
                 style: {
                     ...(modal.initialComponent?.style || {}),
                     widgetKind: "video",
-                    autoPlay: true,
-                    loop: true,
-                    muted: true,
+                    autoPlay: autoPlay ?? true,
+                    loop: loop ?? true,
+                    muted: muted ?? true,
                     volume: volume ?? modal.initialComponent?.style?.volume ?? 1,
+                    objectFit: objectFit || modal.initialComponent?.style?.objectFit || "contain",
                     delaySeconds: Math.max(0, Math.min(300, Number(delaySeconds) || 0)),
                     playsInline: true,
                     lockAspectRatio: true,
@@ -701,10 +777,11 @@ function TemplateEditor() {
                 layerOrder: getNextLayer(),
                 style: {
                     widgetKind: "video",
-                    autoPlay: true,
-                    loop: true,
-                    muted: true,
+                    autoPlay: autoPlay ?? true,
+                    loop: loop ?? true,
+                    muted: muted ?? true,
                     volume: volume ?? 1,
+                    objectFit: objectFit || "contain",
                     delaySeconds: Math.max(0, Math.min(300, Number(delaySeconds) || 0)),
                     playsInline: true,
                     lockAspectRatio: true,
@@ -893,9 +970,11 @@ function TemplateEditor() {
             };
 
             const response = await fetch(
-                `${API_BASE_URL}/api/templates/admin/${templateId}`,
+                isEditing
+                    ? `${API_BASE_URL}/api/templates/admin/${templateId}`
+                    : `${API_BASE_URL}/api/templates/admin`,
                 {
-                    method: "PUT",
+                    method: isEditing ? "PUT" : "POST",
                     headers: {
                         "Content-Type": "application/json",
                         Accept: "application/json",
@@ -908,7 +987,10 @@ function TemplateEditor() {
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || "Unable to update the template.");
+                throw new Error(
+                    data.message ||
+                        `Unable to ${isEditing ? "update" : "create"} the template.`
+                );
             }
 
             temporaryUploadsRef.current.clear();
@@ -916,11 +998,16 @@ function TemplateEditor() {
             navigate(backPath, {
                 replace: true,
                 state: {
-                    successMessage: "Template updated successfully.",
+                    successMessage: isEditing
+                        ? "Template updated successfully."
+                        : "ESG template created and is now available in the template selector.",
                 },
             });
         } catch (requestError) {
-            setSaveError(requestError.message || "Unable to update the template.");
+            setSaveError(
+                requestError.message ||
+                    `Unable to ${isEditing ? "update" : "create"} the template.`
+            );
         } finally {
             setSaving(false);
         }
@@ -966,8 +1053,12 @@ function TemplateEditor() {
                     <button type="button" className="button-back" onClick={handleBack}>
                         {backLabel}
                     </button>
-                    <h1>Edit Template</h1>
-                    <p>Update the template details, pages, and TV-ready widgets.</p>
+                    <h1>{isEditing ? "Edit Template" : "Create ESG Template"}</h1>
+                    <p>
+                        {isEditing
+                            ? "Update the template details, pages, and TV-ready widgets."
+                            : "Design a reusable display layout for Environmental, Social, or Governance content."}
+                    </p>
                 </div>
 
                 <div style={{ display: "flex", gap: 8 }}>
@@ -977,7 +1068,9 @@ function TemplateEditor() {
                         onClick={handleSave}
                         disabled={saving}
                     >
-                        {saving ? "Saving…" : "Save Template"}
+                        {saving
+                            ? isEditing ? "Saving…" : "Creating…"
+                            : isEditing ? "Save Template" : "Create Template"}
                     </button>
                 </div>
             </header>
@@ -1016,7 +1109,7 @@ function TemplateEditor() {
                             aria-invalid={Boolean(validationErrors.category)}
                         >
                             <option value="">Select a category</option>
-                            {CATEGORY_OPTIONS.map((option) => (
+                            {(isEditing ? CATEGORY_OPTIONS : ESG_CATEGORY_OPTIONS).map((option) => (
                                 <option key={option.value} value={option.value}>
                                     {option.label}
                                 </option>
@@ -1136,7 +1229,9 @@ function TemplateEditor() {
             <div className="canvas-editor-mobile-actions">
                 <button type="button" className="button-back" onClick={handleBack}>Back</button>
                 <button type="button" className="canvas-editor-save" onClick={handleSave} disabled={saving}>
-                    {saving ? "Saving…" : "Save Template"}
+                    {saving
+                        ? isEditing ? "Saving…" : "Creating…"
+                        : isEditing ? "Save Template" : "Create Template"}
                 </button>
             </div>
 
@@ -1194,6 +1289,13 @@ function TemplateEditor() {
                     component={modal.initialComponent}
                     onClose={() => setModal(null)}
                     onDone={handleImageSettingsDone}
+                    onReplace={(imageIndex) =>
+                        setModal({
+                            ...modal,
+                            type: "replaceImage",
+                            imageIndex,
+                        })
+                    }
                 />
             )}
 
@@ -1201,6 +1303,7 @@ function TemplateEditor() {
                 <ImageUploadModal
                     onClose={() => setModal(null)}
                     onDone={handleReplaceImage}
+                    singleImage
                 />
             )}
 

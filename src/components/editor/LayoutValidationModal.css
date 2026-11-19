@@ -1,0 +1,83 @@
+.layout-validation-modal {
+  width: min(860px, 100%);
+}
+
+.layout-validation-summary {
+  margin-bottom: 16px;
+  border: 1px solid;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 14px;
+}
+
+.layout-validation-summary--blocked {
+  border-color: #edc3c0;
+  background: #fff3f2;
+  color: #8d3932;
+}
+
+.layout-validation-summary--warning {
+  border-color: #ead59e;
+  background: #fff8df;
+  color: #72520b;
+}
+
+.layout-validation-summary--clear {
+  border-color: #afd7bb;
+  background: #edf8f0;
+  color: #25633a;
+}
+
+.layout-validation-issues {
+  display: grid;
+  gap: 10px;
+  max-height: 48vh;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.layout-validation-issue {
+  border: 1px solid #dfe7e2;
+  border-left: 4px solid #ad8b30;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 12px 14px;
+}
+
+.layout-validation-issue--error {
+  border-left-color: #b94a42;
+}
+
+.layout-validation-issue__heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 12px;
+  color: #506158;
+  font-size: 12px;
+}
+
+.layout-validation-issue--error .layout-validation-issue__heading strong {
+  color: #9b312a;
+}
+
+.layout-validation-issue--warning .layout-validation-issue__heading strong {
+  color: #72520b;
+}
+
+.layout-validation-issue p {
+  margin: 7px 0 4px;
+  color: #263b30;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.layout-validation-issue small,
+.layout-validation-empty {
+  color: #66776f;
+  font-size: 12px;
+  line-height: 1.45;
+}

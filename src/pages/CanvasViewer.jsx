@@ -9,10 +9,23 @@ function CanvasViewer() {
   const navigate = useNavigate();
   const location = useLocation();
   const backPath = location.state?.from || "/shared";
+  const returnToPublishReview = Boolean(location.state?.returnToPublishReview);
+  const projectNameFromState = location.state?.projectName || "";
   const [project, setProject] = useState(null);
   const [pageIndex, setPageIndex] = useState(0);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const returnToPrevious = () => {
+    navigate(backPath, {
+      state: returnToPublishReview
+        ? {
+            reopenPublishReview: canvasId,
+            projectName: projectNameFromState,
+          }
+        : null,
+    });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -45,7 +58,7 @@ function CanvasViewer() {
       <div className="page my-canvas-page">
         <div className="canvas-alert canvas-alert--error" role="alert">
           <span>{error}</span>
-          <button type="button" onClick={() => navigate(backPath)}>
+          <button type="button" onClick={returnToPrevious}>
             Back
           </button>
         </div>
@@ -61,15 +74,17 @@ function CanvasViewer() {
       <button
         type="button"
         className="button-back"
-        onClick={() => navigate(backPath)}
+        onClick={returnToPrevious}
       >
-        ← Back
+        {returnToPublishReview ? "← Back to publish review" : "← Back"}
       </button>
 
       <header className="viewer-header">
         <h1>
           {project.name}
-          <span className="shared-badge shared-badge--viewer">View only</span>
+          <span className="shared-badge shared-badge--viewer">
+            {returnToPublishReview ? "Pre-publish preview" : "View only"}
+          </span>
         </h1>
       </header>
 
@@ -94,6 +109,7 @@ function CanvasViewer() {
         <div className="viewer-canvas-frame">
           <CanvasPreview
             page={currentPage}
+            pageNumber={pageIndex + 1}
             projectName={project.name}
             description={project.description}
             category={project.category}

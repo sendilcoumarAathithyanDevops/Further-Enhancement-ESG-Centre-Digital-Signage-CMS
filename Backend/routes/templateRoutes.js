@@ -440,6 +440,106 @@ router.get("/admin", requireAdmin, async (req, res) => {
   }
 });
 
+router.post("/admin", requireAdmin, async (req, res) => {
+  const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+  const description =
+    typeof req.body.description === "string" ? req.body.description.trim() : "";
+  const category =
+    typeof req.body.category === "string"
+      ? req.body.category.trim().toLowerCase()
+      : "";
+  const pages = Array.isArray(req.body.pages) ? req.body.pages : [];
+
+  if (!name || name.length > 150) {
+    return res.status(400).json({
+      success: false,
+      message: "Template name is required and must be 150 characters or fewer.",
+    });
+  }
+  if (description.length > 255) {
+    return res.status(400).json({
+      success: false,
+      message: "Description must be 255 characters or fewer.",
+    });
+  }
+  if (!["environmental", "social", "governance"].includes(category)) {
+    return res.status(400).json({
+      success: false,
+      message: "Choose an Environmental, Social, or Governance category.",
+    });
+  }
+  if (pages.length === 0 || pages.length > 50) {
+    return res.status(400).json({
+      success: false,
+      message: "A template must contain between one and 50 pages.",
+    });
+  }
+
+  for (const [index, page] of pages.entries()) {
+    if (!page || typeof page.name !== "string" || !page.name.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: `Page ${index + 1} must have a name.`,
+      });
+    }
+    if (page.components !== undefined && !Array.isArray(page.components)) {
+      return res.status(400).json({
+        success: false,
+        message: `Page ${index + 1} has invalid components.`,
+      });
+    }
+  }
+
+  const templateKey = `${name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 80) || "esg-template"}-${Date.now()}-${crypto
+    .randomBytes(3)
+    .toString("hex")}`;
+
+  try {
+    const [result] = await db.query(
+      `INSERT INTO canvas_templates (
+        template_key,
+        template_name,
+        description,
+        category,
+        template_data,
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        templateKey,
+        name,
+        description || null,
+        category,
+        JSON.stringify({ pages }),
+        req.session.user.user_id,
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: `Created the reusable "${name}" template.`,
+      template: {
+        templateId: Number(result.insertId),
+        key: templateKey,
+        name,
+        description,
+        category,
+        isActive: true,
+        pages,
+      },
+    });
+  } catch (error) {
+    console.error("Create template error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to create the template.",
+    });
+  }
+});
+
 // Load one existing template for editing.
 router.get("/admin/:templateId", requireAdmin, async (req, res) => {
   try {

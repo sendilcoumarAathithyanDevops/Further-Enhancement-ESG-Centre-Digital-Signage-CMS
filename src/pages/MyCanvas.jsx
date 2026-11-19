@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import CanvasCard from "../components/CanvasCard";
 import TemplateSelectionModal from "../components/TemplateSelectionModal";
 import CollaboratorsModal from "../components/editor/CollaboratorsModal";
+import LayoutValidationModal from "../components/editor/LayoutValidationModal";
 import { API_BASE_URL } from "../utils/media";
 import "./MyCanvas.css";
 
@@ -23,6 +24,8 @@ function MyCanvas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [publishingProjectId, setPublishingProjectId] = useState(null);
+  const [checkingLayoutProjectId, setCheckingLayoutProjectId] = useState(null);
+  const [layoutReview, setLayoutReview] = useState(null);
   const [successMessage, setSuccessMessage] = useState(
     location.state?.successMessage || ""
   );
@@ -65,6 +68,52 @@ function MyCanvas() {
   }, [location.pathname, location.state, navigate]);
 
   useEffect(() => {
+    const projectId = location.state?.reopenPublishReview;
+    if (!projectId) return undefined;
+
+    let active = true;
+    setCheckingLayoutProjectId(projectId);
+    setError("");
+
+    const restorePublishReview = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/canvases/${projectId}/layout-validation`,
+          { credentials: "include" }
+        );
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Unable to validate this project layout.");
+        }
+
+        if (active) {
+          setLayoutReview({
+            projectId,
+            projectName: location.state.projectName || "",
+            report: data,
+          });
+        }
+      } catch (requestError) {
+        if (active) {
+          console.error(requestError);
+          setError(requestError.message || "Unable to validate this project layout.");
+        }
+      } finally {
+        if (active) {
+          setCheckingLayoutProjectId(null);
+          navigate(location.pathname, { replace: true, state: null });
+        }
+      }
+    };
+
+    restorePublishReview();
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
     if (!successMessage) return undefined;
 
     const timer = window.setTimeout(() => setSuccessMessage(""), 4500);
@@ -81,7 +130,7 @@ function MyCanvas() {
     });
   };
 
-  const handlePublish = async (projectId) => {
+  const publishProject = async (projectId) => {
     if (publishingProjectId === projectId) return;
     setPublishingProjectId(projectId);
     setError("");
@@ -98,6 +147,15 @@ function MyCanvas() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (Array.isArray(data.issues)) {
+          setLayoutReview({
+            projectId,
+            projectName:
+              projects.find((project) => project.projectId === projectId)?.name || "",
+            report: data,
+          });
+          return;
+        }
         throw new Error(data.message || "Failed to publish project.");
       }
       if (data.status !== "published" && data.status !== "draft") {
@@ -117,12 +175,67 @@ function MyCanvas() {
           ? "Project published successfully!"
           : "Project unpublished successfully!"
       );
+      setLayoutReview(null);
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to update project status.");
     } finally {
       setPublishingProjectId(null);
     }
+  };
+
+  const handlePublish = async (projectId) => {
+    if (
+      publishingProjectId === projectId ||
+      checkingLayoutProjectId === projectId
+    ) return;
+    const project = projects.find((item) => item.projectId === projectId);
+
+    if (project?.status === "published") {
+      await publishProject(projectId);
+      return;
+    }
+
+    setCheckingLayoutProjectId(projectId);
+    setError("");
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/canvases/${projectId}/layout-validation`,
+        { credentials: "include" }
+      );
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to validate this project layout.");
+      }
+
+      setLayoutReview({
+        projectId,
+        projectName: project?.name || "",
+        report: data,
+      });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Unable to validate this project layout.");
+    } finally {
+      setCheckingLayoutProjectId(null);
+    }
+  };
+
+  const handlePublishAfterReview = () => {
+    if (!layoutReview) return;
+    publishProject(layoutReview.projectId);
+  };
+
+  const handlePreviewBeforePublish = () => {
+    if (!layoutReview) return;
+    navigate(`/canvas/view/${layoutReview.projectId}`, {
+      state: {
+        from: "/canvas",
+        returnToPublishReview: true,
+        projectName: layoutReview.projectName,
+      },
+    });
   };
 
   // =========================
@@ -226,6 +339,7 @@ function MyCanvas() {
                 onDelete={handleDelete}
                 onShare={setSharingProjectId}
                 publishing={publishingProjectId === project.projectId}
+                checkingLayout={checkingLayoutProjectId === project.projectId}
               />
             ))}
 
@@ -256,6 +370,21 @@ function MyCanvas() {
         <CollaboratorsModal
           canvasId={sharingProjectId}
           onClose={() => setSharingProjectId(null)}
+        />
+      )}
+      {layoutReview && (
+        <LayoutValidationModal
+          projectName={layoutReview.projectName}
+          report={layoutReview.report}
+          publishing={publishingProjectId === layoutReview.projectId}
+          onClose={() => setLayoutReview(null)}
+          onEdit={() => {
+            const projectId = layoutReview.projectId;
+            setLayoutReview(null);
+            navigate(`/canvas/edit/${projectId}`);
+          }}
+          onPreview={handlePreviewBeforePublish}
+          onPublish={handlePublishAfterReview}
         />
       )}
     </div>

@@ -23,6 +23,7 @@ function CanvasCard({
   onDelete,
   onShare,
   publishing = false,
+  checkingLayout = false,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const description = project.description || "No description provided.";
@@ -109,9 +110,11 @@ function CanvasCard({
             type="button"
             className="saved-canvas-card__publish"
             onClick={() => onPublish?.(project.projectId)}
-            disabled={publishing}
+            disabled={publishing || checkingLayout}
           >
-            {publishing
+            {checkingLayout
+              ? "Checking layout…"
+              : publishing
               ? project.status === "published"
                 ? "Unpublishing…"
                 : "Publishing…"
