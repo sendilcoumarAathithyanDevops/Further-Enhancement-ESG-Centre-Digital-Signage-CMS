@@ -22,6 +22,7 @@ const CATEGORY_META = {
   environmental: { label: "Environmental", emoji: "🌱" },
   social: { label: "Social", emoji: "👥" },
   governance: { label: "Governance", emoji: "🏛️" },
+  default: { label: "Default", emoji: "📁" },
 };
 
 function CategoryBadge({ category }) {

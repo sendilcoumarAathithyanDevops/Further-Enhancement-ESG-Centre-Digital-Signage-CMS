@@ -6,9 +6,18 @@ import CollaboratorsModal from "../components/editor/CollaboratorsModal";
 import { API_BASE_URL } from "../utils/media";
 import "./MyCanvas.css";
 
+function getStoredUserRole() {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}").role || "";
+  } catch {
+    return "";
+  }
+}
+
 function MyCanvas() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdmin = getStoredUserRole() === "admin";
   const [projects, setProjects] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -151,9 +160,15 @@ function MyCanvas() {
     <div className="page my-canvas-page">
       <header className="my-canvas-header">
         <div>
-          <span className="my-canvas-eyebrow">Producer workspace</span>
+          <span className="my-canvas-eyebrow">
+            {isAdmin ? "Administrator workspace" : "Producer workspace"}
+          </span>
           <h1>My Canvas</h1>
-          <p>Create and manage digital signage projects for the ESG Centre.</p>
+          <p>
+            {isAdmin
+              ? "Manage the projects you create for the ESG Centre."
+              : "Create and manage digital signage projects for the ESG Centre."}
+          </p>
           <span className="my-canvas-count-pill">
             {projects.length} project{projects.length === 1 ? "" : "s"}
           </span>

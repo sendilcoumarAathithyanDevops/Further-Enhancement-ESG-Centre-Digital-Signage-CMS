@@ -37,6 +37,17 @@ function normaliseTemplate(template) {
   };
 }
 
+function getCategoryLabel(category) {
+  const labels = {
+    general: "General",
+    environmental: "Environmental",
+    social: "Social",
+    governance: "Governance",
+    default: "Default",
+  };
+  return labels[category] || "General";
+}
+
 function TemplatePreviewGraphic({ template }) {
   const previewPages = createPagesFromTemplate(template);
   const previewPage = previewPages[0];
@@ -197,6 +208,10 @@ function TemplateSelectionModal({ isOpen, onClose, onSelect }) {
 
                 <span className="template-option__name">
                   {template.name}
+                </span>
+
+                <span className="template-option__category">
+                  {getCategoryLabel(template.category)}
                 </span>
 
                 <span className="template-option__description">

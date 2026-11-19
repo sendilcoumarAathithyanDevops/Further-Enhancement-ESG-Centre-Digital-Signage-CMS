@@ -40,6 +40,10 @@ const CATEGORY_META = {
     emoji: "🏛️",
     label: "Governance",
   },
+  default: {
+    emoji: "📁",
+    label: "Default",
+  },
 };
 
 function CategoryBadge({ category }) {
