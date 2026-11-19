@@ -92,6 +92,17 @@
   background: #f7fbf8;
 }
 
+.manage-templates-button--create {
+  border: 1px solid #21634d;
+  background: #21634d;
+  color: #fff;
+}
+
+.manage-templates-button--create:hover:not(:disabled) {
+  background: #184b3b;
+  box-shadow: 0 6px 16px rgba(33, 99, 77, 0.18);
+}
+
 .manage-templates-spin {
   animation: manage-templates-spin 0.85s linear infinite;
 }
@@ -129,6 +140,12 @@
   color: #8a1c1c;
   background: #ffe9e9;
   border: 1px solid #f3bbbb;
+}
+
+.manage-templates-message--success {
+  color: #176134;
+  background: #e5f7eb;
+  border: 1px solid #b8e3c5;
 }
 
 .manage-templates-grid {

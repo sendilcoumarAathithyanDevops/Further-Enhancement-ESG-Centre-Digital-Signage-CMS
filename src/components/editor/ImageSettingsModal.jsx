@@ -11,7 +11,7 @@ const RATIO_OPTIONS = [
   { value: "3:2", label: "3:2", ratio: 3 / 2 },
 ];
 
-function ImageSettingsModal({ component, onClose, onDone }) {
+function ImageSettingsModal({ component, onClose, onDone, onReplace }) {
   const initialStyle = component.style || {};
   const paths = Array.isArray(initialStyle.imagePaths) && initialStyle.imagePaths.length > 0
     ? initialStyle.imagePaths
@@ -86,6 +86,15 @@ function ImageSettingsModal({ component, onClose, onDone }) {
       footer={
         <>
           <button type="button" className="editor-modal-button editor-modal-button--secondary" onClick={onClose}>Cancel</button>
+          {active && onReplace && (
+            <button
+              type="button"
+              className="editor-modal-button editor-modal-button--secondary"
+              onClick={() => onReplace(activeIndex)}
+            >
+              Replace selected image
+            </button>
+          )}
           <button type="button" className="editor-modal-button editor-modal-button--primary" onClick={submit}>Done</button>
         </>
       }

@@ -7,6 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
 const db = require("./db");
+const { validateProjectLayout } = require("./layoutValidation");
 const { registerSchedulerDisplayFeatures } = require("./schedulerDisplay");
 const {
   isProjectCategoryAllowed,
@@ -634,6 +635,57 @@ function splitCanvasRows(components) {
   }
 
   return { componentsByCanvasId, backgroundSettingsByCanvasId, transitionSettingsByCanvasId };
+}
+
+async function getProjectLayoutValidation(projectId) {
+  const [canvasRows] = await db.query(
+    `SELECT canvas_id, project_id, name, canvas_order, width, height,
+            background_color, background_image_path
+     FROM canvases
+     WHERE project_id = ?
+     ORDER BY canvas_order ASC, canvas_id ASC`,
+    [projectId]
+  );
+  canvasRows.sort((first, second) =>
+    Number(first.canvas_order) - Number(second.canvas_order) ||
+    Number(first.canvas_id) - Number(second.canvas_id)
+  );
+  const canvasIds = canvasRows.map((canvas) => canvas.canvas_id);
+  let componentsByCanvasId = new Map();
+  let backgroundSettingsByCanvasId = new Map();
+  let transitionSettingsByCanvasId = new Map();
+
+  if (canvasIds.length > 0) {
+    const placeholders = canvasIds.map(() => "?").join(",");
+    const [componentRows] = await db.query(
+      `SELECT component_id, canvas_id, type, content_text, file_path, external_url,
+              position_x, position_y, width, height, rotation, layer_order, style_json
+       FROM components
+       WHERE canvas_id IN (${placeholders})
+       ORDER BY layer_order ASC, component_id ASC`,
+      canvasIds
+    );
+    componentRows.sort((first, second) =>
+      Number(first.layer_order) - Number(second.layer_order) ||
+      Number(first.component_id) - Number(second.component_id)
+    );
+    ({
+      componentsByCanvasId,
+      backgroundSettingsByCanvasId,
+      transitionSettingsByCanvasId,
+    } = splitCanvasRows(componentRows));
+  }
+
+  const pages = canvasRows.map((canvas) =>
+    mapCanvasRow(
+      canvas,
+      componentsByCanvasId.get(canvas.canvas_id) || [],
+      backgroundSettingsByCanvasId.get(canvas.canvas_id) || {},
+      transitionSettingsByCanvasId.get(canvas.canvas_id) || {}
+    )
+  );
+
+  return validateProjectLayout(pages);
 }
 
 async function insertPages(connection, projectId, pages) {
@@ -3172,6 +3224,43 @@ app.post("/api/canvases", requireAuth, async (req, res) => {
   }
 });
 
+app.get("/api/canvases/:id/layout-validation", requireAuth, async (req, res) => {
+  try {
+    const projectId = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(projectId) || projectId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid canvas project ID.",
+      });
+    }
+
+    const [projects] = await db.query(
+      `SELECT project_id
+       FROM projects
+       WHERE project_id = ? AND user_id = ? AND is_template = FALSE
+       LIMIT 1`,
+      [projectId, req.session.user.user_id]
+    );
+    if (projects.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Project not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      ...await getProjectLayoutValidation(projectId),
+    });
+  } catch (error) {
+    console.error("Canvas layout validation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to validate this project layout.",
+    });
+  }
+});
+
 app.put("/api/canvases/:id", requireProjectAccess("editor"), async (req, res) => {
   const projectId = Number.parseInt(req.params.id, 10);
 
@@ -3295,6 +3384,17 @@ app.post("/api/canvases/:id/publish", requireAuth, async (req, res) => {
     }
 
     const currentStatus = rows[0].status;
+    let layoutValidation = null;
+    if (currentStatus !== "published") {
+      layoutValidation = await getProjectLayoutValidation(projectId);
+      if (!layoutValidation.canPublish) {
+        return res.status(422).json({
+          success: false,
+          message: "Fix the blocking layout issues before publishing.",
+          ...layoutValidation,
+        });
+      }
+    }
 
     const newStatus =
       currentStatus === "published"
@@ -3322,6 +3422,7 @@ app.post("/api/canvases/:id/publish", requireAuth, async (req, res) => {
         newStatus === "published"
           ? "Project published successfully."
           : "Project unpublished successfully.",
+      ...(layoutValidation ? { layoutValidation } : {}),
     });
   } catch (err) {
     console.error(err);

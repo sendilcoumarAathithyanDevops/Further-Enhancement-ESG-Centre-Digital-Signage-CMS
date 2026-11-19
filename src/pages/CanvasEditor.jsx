@@ -316,22 +316,84 @@ function CanvasEditor() {
     markDirty();
   };
 
-  const handleReplaceImage = ({ paths }) => {
+  const handleReplaceImage = ({ paths, settings }) => {
     if (!modal?.componentId) return;
-
     const newPath = paths[0];
     if (!newPath) return;
 
+    const component = findSelectedComponent(modal.componentId);
+    if (!component) return;
     temporaryUploadsRef.current.add(newPath);
+    const style = component.style || {};
+    const imagePaths =
+      Array.isArray(style.imagePaths) && style.imagePaths.length > 0
+        ? [...style.imagePaths]
+        : component.filePath
+          ? [component.filePath]
+          : [];
+    const imageIndex = Math.max(
+      0,
+      Math.min(Number(modal.imageIndex) || 0, imagePaths.length - 1)
+    );
+    if (imageIndex < 0) return;
 
-    updateWidget(modal.componentId, {
-      filePath: newPath,
-      style: {
-        ...modal.initialComponent.style,
-        imagePaths: [newPath],
-      },
+    const imageSettings = Array.isArray(style.imageSettings)
+      ? [...style.imageSettings]
+      : imagePaths.map(() => ({}));
+    const replacementSettings = settings?.[0] || {};
+    imagePaths[imageIndex] = newPath;
+    imageSettings[imageIndex] = {
+      ...(imageSettings[imageIndex] || {}),
+      ...replacementSettings,
+    };
+    const nextStyle = {
+      ...style,
+      imagePaths,
+      imageSettings,
+    };
+    if (imageIndex === 0) {
+      Object.assign(nextStyle, {
+        aspectRatioChoice: replacementSettings.aspectRatioChoice || style.aspectRatioChoice,
+        aspectRatio: replacementSettings.aspectRatio || style.aspectRatio,
+        objectFit: replacementSettings.objectFit || style.objectFit,
+        focusX: replacementSettings.focusX ?? style.focusX,
+        focusY: replacementSettings.focusY ?? style.focusY,
+        lockAspectRatio: true,
+      });
+    }
+
+    const nextPages = pages.map((page) => {
+      if (page.clientId !== selectedPageId) return page;
+      return {
+        ...page,
+        components: page.components.map((item) => {
+          if (widgetKey(item) !== modal.componentId) return item;
+          if (imageIndex !== 0) {
+            return { ...item, filePath: imagePaths[0], style: nextStyle };
+          }
+
+          const ratio = Number(replacementSettings.aspectRatio) || Number(style.aspectRatio) || 16 / 9;
+          const currentWidth = Number(item.width) || 610;
+          const { width, height } = fitSizeForRatio(
+            Math.min(currentWidth, CANVAS_WIDTH),
+            MAX_Y - MIN_Y,
+            ratio
+          );
+          return {
+            ...item,
+            filePath: imagePaths[0],
+            width,
+            height,
+            positionX: clamp(Number(item.positionX) || 0, 0, CANVAS_WIDTH - width),
+            positionY: clamp(Number(item.positionY) || MIN_Y, MIN_Y, MAX_Y - height),
+            style: nextStyle,
+          };
+        }),
+      };
     });
-
+    setPages(nextPages);
+    markDirty();
+    cleanupUnusedTemporaryPaths(nextPages);
     setModal(null);
   };
 
@@ -517,7 +579,7 @@ function CanvasEditor() {
     if (kind === "text" || kind === "textArea") {
       setModal({ type: kind, componentId: id, initialComponent: component });
     } else if (component.type === "image") {
-      setModal({ type: "replaceImage", componentId: id, initialComponent: component, });
+      setModal({ type: "imageSettings", componentId: id, initialComponent: component });
     } else if (component.type === "video") {
       setModal({ type: "video", componentId: id, initialComponent: component });
     }
@@ -692,7 +754,7 @@ function CanvasEditor() {
     setModal(null);
   };
 
-  const handleVideoDone = ({ path, volume, delaySeconds }) => {
+  const handleVideoDone = ({ path, volume, delaySeconds, autoPlay, loop, muted, objectFit }) => {
     if (path && path !== modal.initialComponent?.filePath) {
       temporaryUploadsRef.current.add(path);
     }
@@ -703,10 +765,11 @@ function CanvasEditor() {
         style: {
           ...(modal.initialComponent?.style || {}),
           widgetKind: "video",
-          autoPlay: true,
-          loop: true,
-          muted: true,
+          autoPlay: autoPlay ?? true,
+          loop: loop ?? true,
+          muted: muted ?? true,
           volume: volume ?? modal.initialComponent?.style?.volume ?? 1,
+          objectFit: objectFit || modal.initialComponent?.style?.objectFit || "contain",
           delaySeconds: Math.max(0, Math.min(300, Number(delaySeconds) || 0)),
           playsInline: true,
           lockAspectRatio: true,
@@ -730,10 +793,11 @@ function CanvasEditor() {
         layerOrder: getNextLayer(),
         style: {
           widgetKind: "video",
-          autoPlay: true,
-          loop: true,
-          muted: true,
+          autoPlay: autoPlay ?? true,
+          loop: loop ?? true,
+          muted: muted ?? true,
           volume: volume ?? 1,
+          objectFit: objectFit || "contain",
           delaySeconds: Math.max(0, Math.min(300, Number(delaySeconds) || 0)),
           playsInline: true,
           lockAspectRatio: true,
@@ -1230,6 +1294,13 @@ function CanvasEditor() {
           component={modal.initialComponent}
           onClose={() => setModal(null)}
           onDone={handleImageSettingsDone}
+          onReplace={(imageIndex) =>
+            setModal({
+              ...modal,
+              type: "replaceImage",
+              imageIndex,
+            })
+          }
         />
       )}
 
@@ -1237,6 +1308,7 @@ function CanvasEditor() {
         <ImageUploadModal
           onClose={() => setModal(null)}
           onDone={handleReplaceImage}
+          singleImage
         />
       )}
 

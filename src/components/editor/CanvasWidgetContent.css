@@ -21,6 +21,10 @@
   line-height: 1.4;
 }
 
+.canvas-widget-content__text-inner {
+  width: 100%;
+}
+
 .canvas-widget-content__shape,
 .canvas-widget-placeholder {
   display: flex;

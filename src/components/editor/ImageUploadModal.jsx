@@ -48,7 +48,7 @@ async function inspectImage(file) {
   });
 }
 
-function ImageUploadModal({ onClose, onDone, initialComponent }) {
+function ImageUploadModal({ onClose, onDone, initialComponent, singleImage = false }) {
   const [items, setItems] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [displayMode, setDisplayMode] = useState(
@@ -81,8 +81,12 @@ function ImageUploadModal({ onClose, onDone, initialComponent }) {
       return;
     }
 
-    if (items.length + candidates.length > 20) {
-      setError("You can upload at most 20 images at one time.");
+    if (items.length + candidates.length > (singleImage ? 1 : 20)) {
+      setError(
+        singleImage
+          ? "Select one image to replace the current image."
+          : "You can upload at most 20 images at one time."
+      );
       return;
     }
 
@@ -163,8 +167,12 @@ function ImageUploadModal({ onClose, onDone, initialComponent }) {
 
   return (
     <EditorModal
-      title="Add Images"
-      description="Upload, crop, and choose how one or more images should appear."
+      title={singleImage ? "Replace Image" : "Add Images"}
+      description={
+        singleImage
+          ? "Choose and crop a replacement for the selected image."
+          : "Upload, crop, and choose how one or more images should appear."
+      }
       onClose={uploading ? () => {} : onClose}
       wide
       footer={
@@ -188,10 +196,12 @@ function ImageUploadModal({ onClose, onDone, initialComponent }) {
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          multiple
+          multiple={!singleImage}
           onChange={(event) => addFiles(event.target.files)}
         />
-        <strong>Select or drag image files here</strong>
+        <strong>
+          {singleImage ? "Select or drag one image here" : "Select or drag image files here"}
+        </strong>
         <span>JPG, PNG, or WebP · Maximum 15 MB each</span>
       </label>
 
