@@ -1,0 +1,257 @@
+.media-library-page {
+  max-width: 1500px;
+  margin: 0 auto;
+  color: #23332a;
+}
+
+.media-library-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 28px;
+  border: 1px solid #dce9df;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #f0f9f3, #fff 70%);
+}
+
+.media-library-eyebrow {
+  color: #4f7d5d;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.media-library-header h1 {
+  margin: 8px 0;
+  font-size: clamp(30px, 4vw, 42px);
+}
+
+.media-library-header p {
+  margin: 0;
+  color: #637168;
+}
+
+.media-refresh-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 15px;
+  border: 0;
+  border-radius: 10px;
+  background: #e8f3eb;
+  color: #376748;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.media-refresh-button:disabled {
+  cursor: wait;
+}
+
+.media-library-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e6ece8;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.media-library-toolbar > label,
+.media-category-control {
+  display: grid;
+  gap: 6px;
+  color: #66736b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.media-library-toolbar select,
+.media-category-control select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #dce5df;
+  border-radius: 9px;
+  background: #fff;
+  color: #293a30;
+  font: inherit;
+}
+
+.media-search {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  min-width: 220px;
+  padding: 0 11px;
+  border: 1px solid #dce5df;
+  border-radius: 9px;
+  color: #728078;
+}
+
+.media-search input {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  outline: 0;
+  color: #293a30;
+  font: inherit;
+}
+
+.media-result-count {
+  padding: 11px 0;
+  color: #5e6b63;
+  white-space: nowrap;
+}
+
+.media-library-error {
+  margin-bottom: 18px;
+  padding: 13px 15px;
+  border: 1px solid #f0c4c0;
+  border-radius: 11px;
+  background: #fff1f0;
+  color: #9c3932;
+}
+
+.media-library-empty {
+  display: flex;
+  min-height: 200px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed #d5e0d9;
+  border-radius: 16px;
+  color: #718077;
+}
+
+.media-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  align-items: start;
+  gap: 18px;
+}
+
+.media-library-card {
+  overflow: hidden;
+  border: 1px solid #e3eae5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(28, 62, 40, .05);
+}
+
+.media-preview {
+  display: grid;
+  height: 190px;
+  place-items: center;
+  overflow: hidden;
+  background: #f0f3f1;
+}
+
+.media-preview img,
+.media-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.media-card-content {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.media-file-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #315d40;
+}
+
+.media-file-heading strong {
+  overflow: hidden;
+  color: #26372d;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-file-meta {
+  margin: -8px 0 0;
+  color: #77827b;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.media-usage {
+  padding-top: 11px;
+  border-top: 1px solid #edf1ee;
+  color: #49574e;
+  font-size: 13px;
+}
+
+.media-usage ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-usage li {
+  display: grid;
+  gap: 3px;
+}
+
+.media-usage li span {
+  overflow: hidden;
+  color: #35493b;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-usage small,
+.media-more-uses,
+.media-usage p {
+  color: #7a857e;
+  font-size: 11px;
+}
+
+.media-usage p {
+  margin: 8px 0 0;
+}
+
+.media-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.media-spin {
+  animation: media-spin 1s linear infinite;
+}
+
+@keyframes media-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 700px) {
+  .media-library-header,
+  .media-library-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .media-library-toolbar {
+    display: grid;
+  }
+}

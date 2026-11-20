@@ -4,6 +4,7 @@ import {
   FiActivity,
   FiClock,
   FiFileText,
+  FiImage,
   FiMonitor,
   FiRefreshCw,
   FiShield,
@@ -25,6 +26,7 @@ const EMPTY_DASHBOARD = {
     governance: 0,
   },
   monitors: { total: 0, online: 0, offline: 0 },
+  audit: { lastSevenDays: 0, recent: [] },
   recentUsers: [],
   recentMonitors: [],
 };
@@ -167,6 +169,13 @@ function AdminDashboard() {
           users: { ...EMPTY_DASHBOARD.users, ...(nextDashboard.users || {}) },
           projects: { ...EMPTY_DASHBOARD.projects, ...(nextDashboard.projects || {}) },
           monitors: { ...EMPTY_DASHBOARD.monitors, ...(nextDashboard.monitors || {}) },
+          audit: {
+            ...EMPTY_DASHBOARD.audit,
+            ...(nextDashboard.audit || {}),
+            recent: Array.isArray(nextDashboard.audit?.recent)
+              ? nextDashboard.audit.recent
+              : [],
+          },
           recentUsers: Array.isArray(nextDashboard.recentUsers)
             ? nextDashboard.recentUsers
             : [],
@@ -209,7 +218,7 @@ function AdminDashboard() {
     []
   );
 
-  const { users, projects, monitors, recentUsers, recentMonitors } = dashboard;
+  const { users, projects, monitors, audit, recentUsers, recentMonitors } = dashboard;
 
   if (loading) {
     return (
@@ -464,6 +473,42 @@ function AdminDashboard() {
         )}
       </section>
 
+      <section className="admin-panel" aria-labelledby="audit-log-heading">
+        <div className="admin-panel__header">
+          <div>
+            <span>Administrative activity</span>
+            <h2 id="audit-log-heading">Audit Log</h2>
+          </div>
+          <strong>{audit.lastSevenDays} changes in the last 7 days</strong>
+        </div>
+        {audit.recent.length === 0 ? (
+          <div className="admin-empty-state">No administrator changes have been recorded.</div>
+        ) : (
+          <div className="admin-table-wrapper">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Administrator</th>
+                  <th>Action</th>
+                  <th>Resource</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.recent.map((entry) => (
+                  <tr key={entry.id}>
+                    <td className="admin-table__primary">{entry.username}</td>
+                    <td>{entry.action}</td>
+                    <td>{entry.resource}</td>
+                    <td>{formatDate(entry.createdAt, true)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <section className="admin-panel admin-quick-actions-panel" aria-labelledby="quick-actions-heading">
         <div className="admin-panel__header">
           <div>
@@ -480,6 +525,10 @@ function AdminDashboard() {
           <button type="button" onClick={() => navigate("/manage-projects")}>
             <FiFileText aria-hidden="true" />
             <span><strong>Manage Projects</strong><small>Review published ESG content</small></span>
+          </button>
+          <button type="button" onClick={() => navigate("/media-library")}>
+            <FiImage aria-hidden="true" />
+            <span><strong>Media Library</strong><small>Find, tag, and track uploaded media</small></span>
           </button>
           <button type="button" onClick={() => navigate("/display-manager")}>
             <FiMonitor aria-hidden="true" />
