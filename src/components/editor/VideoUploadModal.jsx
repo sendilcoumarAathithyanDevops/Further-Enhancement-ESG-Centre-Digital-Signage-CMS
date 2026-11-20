@@ -60,6 +60,20 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
     setRemoveRequested(false);
   };
 
+  const removeVideo = () => {
+    if (
+      initialComponent?.filePath &&
+      !window.confirm("Remove this video from the widget?")
+    ) {
+      return;
+    }
+
+    if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+    setFile(null);
+    setPreviewUrl("");
+    setRemoveRequested(Boolean(initialComponent?.filePath));
+  };
+
   const upload = async () => {
     const safeDelaySeconds = normaliseDelaySeconds(delaySeconds);
 
@@ -232,12 +246,7 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
               <small>Set how many seconds the display screen should wait before this video starts playing.</small>
             </div>
           </div>
-          <button type="button" onClick={() => {
-            if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
-            setFile(null);
-            setPreviewUrl("");
-            setRemoveRequested(Boolean(initialComponent?.filePath));
-          }}>{removeRequested ? "Video will be removed" : "Remove video"}</button>
+          <button type="button" onClick={removeVideo}>{removeRequested ? "Video will be removed" : "Remove video"}</button>
         </div>
       )}
       {removeRequested && (

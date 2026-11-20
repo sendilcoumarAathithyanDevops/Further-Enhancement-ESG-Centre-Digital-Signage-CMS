@@ -24,4 +24,29 @@ describe("BackgroundModal colour presets", () => {
       })
     );
   });
+
+  it("asks before removing an existing background image", () => {
+    const onDone = jest.fn();
+    const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <BackgroundModal
+        page={{
+          backgroundColor: "#FFFFFF",
+          backgroundImagePath: "/uploads/background.jpg",
+          backgroundSettings: {},
+        }}
+        onClose={jest.fn()}
+        onDone={onDone}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove image" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply Background" }));
+
+    expect(confirm).toHaveBeenCalledWith("Remove the background image from this page?");
+    expect(onDone).toHaveBeenCalledWith(
+      expect.objectContaining({ backgroundImagePath: "/uploads/background.jpg" })
+    );
+    confirm.mockRestore();
+  });
 });
