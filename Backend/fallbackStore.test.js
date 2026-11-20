@@ -60,6 +60,43 @@ test("fallback SQL timestamps evaluate NOW instead of storing its expression", a
   assert.match(projects[0].updated_at, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
 });
 
+test("fallback stores media tags and assigns audit log IDs", async () => {
+  await fallbackStore.query(
+    `INSERT INTO media_assets
+       (media_path, original_name, mime_type, size_bytes, category_tag)
+     VALUES (?, ?, ?, ?, ?)`,
+    ["/uploads/images/2/image.png", "image.png", "image/png", 2048, "social"]
+  );
+  const [media] = await fallbackStore.query(
+    "SELECT media_path, category_tag FROM media_assets WHERE media_path = ?",
+    ["/uploads/images/2/image.png"]
+  );
+  assert.equal(media[0].category_tag, "social");
+
+  const [insertResult] = await fallbackStore.query(
+    `INSERT INTO audit_logs
+       (actor_user_id, actor_username, action, resource, ip_address)
+     VALUES (?, ?, ?, ?, ?)`,
+    [1, "admin", "PATCH", "/api/admin/media", "127.0.0.1"]
+  );
+  const [logs] = await fallbackStore.query(
+    "SELECT audit_log_id, actor_username, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 5"
+  );
+  const recentCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
+  const [recentLogs] = await fallbackStore.query(
+    "SELECT * FROM audit_logs WHERE created_at >= ? ORDER BY created_at DESC",
+    [recentCutoff]
+  );
+  assert.equal(insertResult.insertId, 1);
+  assert.equal(logs[0].audit_log_id, 1);
+  assert.equal(logs[0].actor_username, "admin");
+  assert.match(logs[0].created_at || "", /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  assert.equal(recentLogs.length, 1);
+});
+
 test("fallback can save and reload a default-display playlist with page details", async () => {
   const [insertResult] = await fallbackStore.query(
     `INSERT INTO monitor_playlist_items

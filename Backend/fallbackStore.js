@@ -1030,6 +1030,7 @@ async function query(sql, params = []) {
         display_power_schedules: "power_schedule_id",
         monitor_playlist_items: "playlist_item_id",
         monitor_playlist_pages: "playlist_page_id",
+        audit_logs: "audit_log_id",
       };
       const autoIncrementColumn = autoIncrementColumns[table];
       if (autoIncrementColumn) {
@@ -1056,6 +1057,15 @@ async function query(sql, params = []) {
       if (table === "components") {
         row.created_at ??= new Date().toISOString();
         row.updated_at ??= row.created_at;
+      }
+      if (table === "media_assets" || table === "audit_logs") {
+        const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+        if (table === "media_assets") {
+          row.uploaded_at ||= now;
+          row.updated_at ||= now;
+        } else {
+          row.created_at ||= now;
+        }
       }
       if (table === "monitors") {
         const monitors = data.monitors;

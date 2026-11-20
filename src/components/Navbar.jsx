@@ -56,6 +56,7 @@ function Navbar({ isOpen, setIsOpen }) {
     { name: "Admin Dashboard", icon: "🏠", path: "/admin-dashboard" },
     { name: "Manage Users", icon: "👥", path: "/manage-users" },
     { name: "Manage Projects", icon: "📁", path: "/manage-projects" },
+    { name: "Media Library", icon: "🖼️", path: "/media-library" },
     { name: "My Canvas", icon: "🎨", path: "/canvas" },
     { name: "Manage Templates", icon: "🧩", path: "/manage-templates" },
     { name: "Display Manager", icon: "🖥️", path: "/display-manager" },
