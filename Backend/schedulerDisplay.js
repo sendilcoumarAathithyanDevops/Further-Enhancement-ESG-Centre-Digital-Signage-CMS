@@ -588,9 +588,12 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
         });
       }
 
+      const pairingExpiresAt = monitor.pairing_expires_at
+        ? new Date(monitor.pairing_expires_at).getTime()
+        : Number.NaN;
       if (
-        monitor.pairing_expires_at &&
-        new Date(monitor.pairing_expires_at).getTime() < Date.now()
+        Number.isFinite(pairingExpiresAt) &&
+        pairingExpiresAt < Date.now()
       ) {
         return res.status(410).json({
           success: false,
