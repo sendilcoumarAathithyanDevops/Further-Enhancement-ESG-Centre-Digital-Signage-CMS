@@ -2742,6 +2742,18 @@
       "is_active": 1,
       "created_at": "2026-11-19T13:10:52.571Z",
       "updated_at": "2026-11-19T13:10:52.571Z"
+    },
+    {
+      "template_key": "pp-1795163280522-a926c4",
+      "template_name": "pp",
+      "description": null,
+      "category": "social",
+      "template_data": "{\"pages\":[{\"name\":\"Page 1\",\"order\":1,\"width\":1920,\"height\":1080,\"backgroundColor\":\"#DCEFFC\",\"backgroundImagePath\":null,\"backgroundSettings\":{\"widgetKind\":\"backgroundSettings\",\"backgroundColor\":\"#DCEFFC\",\"backgroundColorOpacity\":1,\"backgroundImagePath\":null,\"backgroundImageOpacity\":1,\"backgroundFit\":\"fill\",\"backgroundPositionX\":50,\"backgroundPositionY\":50,\"backgroundScale\":1,\"backgroundOriginalWidth\":null,\"backgroundOriginalHeight\":null,\"preserveAspectRatio\":true,\"colorOpacity\":1,\"imageOpacity\":1},\"transitionSettings\":{\"type\":\"none\"},\"components\":[{\"type\":\"text\",\"contentText\":\"apple\",\"filePath\":null,\"externalUrl\":null,\"positionX\":510,\"positionY\":475,\"width\":900,\"height\":140,\"rotation\":0,\"layerOrder\":2,\"style\":{\"widgetKind\":\"text\",\"textType\":\"title\",\"fontSize\":32,\"fontWeight\":\"700\",\"fontFamily\":\"Arial, sans-serif\",\"color\":\"#000000\",\"backgroundColor\":\"#ffffff\",\"backgroundOpacity\":0,\"padding\":24,\"textAlign\":\"left\",\"lineHeight\":1.2}},{\"type\":\"image\",\"contentText\":\"Image 1\",\"filePath\":\"/uploads/images/1/1795163099013-858a5aa1-e0cf-416c-88cd-390e60491ef4.png\",\"externalUrl\":null,\"positionX\":1093,\"positionY\":152,\"width\":520,\"height\":520,\"rotation\":0,\"layerOrder\":3,\"style\":{\"widgetKind\":\"image\",\"displayMode\":\"individual\",\"imagePaths\":[\"/uploads/images/1/1795163099013-858a5aa1-e0cf-416c-88cd-390e60491ef4.png\"],\"imageSettings\":[{\"aspectRatioChoice\":\"original\",\"aspectRatio\":1,\"objectFit\":\"cover\",\"focusX\":50,\"focusY\":50,\"originalWidth\":316,\"originalHeight\":316}],\"aspectRatioChoice\":\"original\",\"aspectRatio\":1,\"objectFit\":\"cover\",\"focusX\":50,\"focusY\":50,\"lockAspectRatio\":true}}]},{\"name\":\"Page 2\",\"order\":2,\"width\":1920,\"height\":1080,\"backgroundColor\":\"#ffffff\",\"backgroundImagePath\":null,\"backgroundSettings\":{\"widgetKind\":\"backgroundSettings\",\"backgroundFit\":\"fill\",\"backgroundImageOpacity\":1,\"backgroundColorOpacity\":1,\"backgroundPositionX\":50,\"backgroundPositionY\":50,\"backgroundScale\":1,\"preserveAspectRatio\":true},\"transitionSettings\":{\"type\":\"none\"},\"components\":[]}]}",
+      "created_by": 1,
+      "template_id": 4,
+      "is_active": 1,
+      "created_at": "2026-11-20T08:28:00.525Z",
+      "updated_at": "2026-11-20T08:28:00.525Z"
     }
   ],
   "display_power_schedules": [],

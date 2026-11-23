@@ -849,8 +849,8 @@ function CanvasEditor() {
     if (!currentPage) return;
 
     const originalPage = originalPages.find(
-      (page) => page.order === currentPage.order
-    );
+      (page) => page.clientId === currentPage.clientId
+    ) || originalPages.find((page) => page.order === currentPage.order);
 
     if (!originalPage) return;
 
@@ -860,9 +860,11 @@ function CanvasEditor() {
           return page;
         }
 
-        const resetComponents = page.components.map((component, index) => {
-          const originalComponent =
-            originalPage.components[index];
+        const resetComponents = page.components.map((component) => {
+          const componentKey = widgetKey(component);
+          const originalComponent = originalPage.components.find(
+            (item) => widgetKey(item) === componentKey
+          );
 
           if (!originalComponent) {
             return component;
@@ -916,6 +918,10 @@ function CanvasEditor() {
     ];
 
     setPages(nextPages);
+    setOriginalPages((currentOriginalPages) => [
+      ...currentOriginalPages,
+      structuredClone(duplicatedPage),
+    ]);
     setSelectedPageId(duplicatedPage.clientId);
     setSelectedWidgetId(null);
     markDirty();
