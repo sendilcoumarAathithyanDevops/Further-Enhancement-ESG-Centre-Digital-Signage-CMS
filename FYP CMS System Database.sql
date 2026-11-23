@@ -398,6 +398,7 @@ CREATE TABLE `users` (
 -- Table structure for table `display_power_schedules`
 --
 
+DROP TABLE IF EXISTS `display_power_schedules`;
 CREATE TABLE `display_power_schedules` (
   `power_schedule_id` int NOT NULL AUTO_INCREMENT,
   `monitor_id` int NOT NULL,

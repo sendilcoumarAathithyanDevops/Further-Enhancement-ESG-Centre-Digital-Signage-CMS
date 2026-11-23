@@ -156,10 +156,24 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
       {error && <div className="editor-modal-error" role="alert">{error}</div>}
       <label
         className="media-dropzone"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files?.[0]); }}
+        aria-disabled={uploading}
+        onDragOver={(event) => {
+          if (!uploading) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          if (!uploading) selectFile(event.dataTransfer.files?.[0]);
+        }}
       >
-        <input type="file" accept="video/*" onChange={(event) => selectFile(event.target.files?.[0])} />
+        <input
+          type="file"
+          accept="video/*"
+          disabled={uploading}
+          onChange={(event) => {
+            if (event.target.files?.[0]) selectFile(event.target.files[0]);
+            event.target.value = "";
+          }}
+        />
         <strong>{file ? "Choose a different video" : "Select or drag a video here"}</strong>
         <span>Any video format · Maximum 1 GB</span>
       </label>
@@ -241,18 +255,19 @@ function VideoUploadModal({ onClose, onDone, initialComponent }) {
                 max={MAX_DELAY_SECONDS}
                 step="1"
                 value={normaliseDelaySeconds(delaySeconds)}
+                aria-label="Delay before playing video"
                 onChange={(event) => setDelaySeconds(Number(event.target.value))}
               />
               <small>Set how many seconds the display screen should wait before this video starts playing.</small>
             </div>
           </div>
-          <button type="button" onClick={removeVideo}>{removeRequested ? "Video will be removed" : "Remove video"}</button>
+          <button type="button" onClick={removeVideo} disabled={uploading}>{removeRequested ? "Video will be removed" : "Remove video"}</button>
         </div>
       )}
       {removeRequested && (
         <div className="video-removal-notice" role="status">
           This video will be removed when you select Done.
-          <button type="button" onClick={() => {
+          <button type="button" disabled={uploading} onClick={() => {
             setPreviewUrl(resolveMediaUrl(initialComponent.filePath));
             setRemoveRequested(false);
           }}>

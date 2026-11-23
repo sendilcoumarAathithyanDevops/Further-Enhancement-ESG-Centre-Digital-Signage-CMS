@@ -2427,7 +2427,7 @@
       "pairing_expires_at": null,
       "monitor_category": "default",
       "location": "default Display Area",
-      "status": "online",
+      "status": "offline",
       "is_paired": 1,
       "monitor_id": 32,
       "created_at": "2026-11-16 15:31:36",
@@ -2795,6 +2795,62 @@
       "ip_address": "::1",
       "audit_log_id": 2,
       "created_at": "2026-11-21 12:40:59"
+    },
+    {
+      "actor_user_id": 1,
+      "actor_username": "admin",
+      "action": "POST",
+      "resource": "/api/uploads/images",
+      "ip_address": "::1",
+      "audit_log_id": 3,
+      "created_at": "2026-11-23 04:44:11"
+    },
+    {
+      "actor_user_id": 1,
+      "actor_username": "admin",
+      "action": "POST",
+      "resource": "/api/uploads/backgrounds",
+      "ip_address": "::1",
+      "audit_log_id": 4,
+      "created_at": "2026-11-23 04:44:43"
+    },
+    {
+      "actor_user_id": 1,
+      "actor_username": "admin",
+      "action": "POST",
+      "resource": "/api/uploads/images",
+      "ip_address": "::1",
+      "audit_log_id": 5,
+      "created_at": "2026-11-23 04:52:03"
+    }
+  ],
+  "media_assets": [
+    {
+      "media_path": "/uploads/images/1/1795409051176-f6fc0095-41a7-4b99-89a1-837d6b6df68d.jpg",
+      "original_name": "Kita.Ikuyo.600.3841918.jpg",
+      "mime_type": "image/jpeg",
+      "size_bytes": 109853,
+      "owner_user_id": 1,
+      "uploaded_at": "2026-11-23 04:44:11",
+      "updated_at": "2026-11-23 04:44:11"
+    },
+    {
+      "media_path": "/uploads/backgrounds/1/1795409083550-f323517e-4752-4788-9467-6f7283e3de92.jpg",
+      "original_name": "Kita.Ikuyo.600.3841918.jpg",
+      "mime_type": "image/jpeg",
+      "size_bytes": 109853,
+      "owner_user_id": 1,
+      "uploaded_at": "2026-11-23 04:44:43",
+      "updated_at": "2026-11-23 04:44:43"
+    },
+    {
+      "media_path": "/uploads/images/1/1795409523858-9a2a680d-cf95-4b2b-b598-159375a56af7.jpg",
+      "original_name": "Kita.Ikuyo.600.3841918.jpg",
+      "mime_type": "image/jpeg",
+      "size_bytes": 109853,
+      "owner_user_id": 1,
+      "uploaded_at": "2026-11-23 04:52:03",
+      "updated_at": "2026-11-23 04:52:03"
     }
   ]
 }

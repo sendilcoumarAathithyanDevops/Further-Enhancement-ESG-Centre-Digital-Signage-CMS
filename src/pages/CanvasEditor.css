@@ -24,6 +24,11 @@
   font-size: 15px;
 }
 
+.canvas-editor-header__actions {
+  display: flex;
+  gap: 8px;
+}
+
 .canvas-editor-save,
 .canvas-editor-cancel {
   border: 0;
@@ -260,7 +265,7 @@
 }
 
 @media (max-width: 720px) {
-  .canvas-editor-header > .canvas-editor-save {
+  .canvas-editor-header__actions {
     display: none;
   }
 
@@ -339,8 +344,34 @@
 
 .canvas-stage-card__button-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.canvas-stage-card__color-picker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
+.canvas-stage-card__color-picker input[type="color"] {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  padding: 2px;
 }
 
 .canvas-stage-card__action-btn {
