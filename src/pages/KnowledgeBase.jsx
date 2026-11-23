@@ -292,7 +292,11 @@ function UploadModal({ article, onClose, onUploaded }) {
               <button
                 type="button"
                 className="kb-icon-button"
-                onClick={() => setRemoveExistingFile(true)}
+                onClick={() => {
+                  if (window.confirm("Remove the current attachment? It will be permanently deleted when you save the article.")) {
+                    setRemoveExistingFile(true);
+                  }
+                }}
                 aria-label="Remove current attachment"
               >
                 <FiX />

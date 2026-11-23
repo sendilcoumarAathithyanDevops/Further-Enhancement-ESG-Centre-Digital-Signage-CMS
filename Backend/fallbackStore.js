@@ -980,6 +980,60 @@ async function query(sql, params = []) {
   loadData();
   const normalized = String(sql).trim();
   if (/^SELECT/i.test(normalized)) {
+    if (/^SELECT\s+c\.canvas_id[\s\S]*FROM canvases c[\s\S]*LEFT JOIN monitor_playlist_pages mpp/i.test(normalized)) {
+      const playlistItemId = Number(params[0]);
+      const projectId = Number(params[1]);
+      const pages = (data.canvases || [])
+        .filter((canvas) => Number(canvas.project_id) === projectId)
+        .sort((left, right) =>
+          Number(left.canvas_order) - Number(right.canvas_order)
+        )
+        .map((canvas) => {
+          const playlistPage = (data.monitor_playlist_pages || []).find((page) =>
+            Number(page.playlist_item_id) === playlistItemId &&
+            Number(page.canvas_id) === Number(canvas.canvas_id)
+          );
+          return {
+            canvas_id: canvas.canvas_id,
+            project_id: canvas.project_id,
+            name: canvas.name,
+            canvas_order: canvas.canvas_order,
+            width: canvas.width,
+            height: canvas.height,
+            background_color: canvas.background_color,
+            background_image_path: canvas.background_image_path,
+            duration_seconds: playlistPage?.duration_seconds ?? canvas.duration_seconds ?? 10,
+          };
+        });
+      return [pages, []];
+    }
+    if (/^SELECT\s+component_id,\s*canvas_id,\s*type[\s\S]*FROM components/i.test(normalized)) {
+      const canvasIds = new Set(params.map((value) => Number(value)));
+      const components = (data.components || [])
+        .filter((component) => canvasIds.has(Number(component.canvas_id)))
+        .sort((left, right) =>
+          Number(left.layer_order) - Number(right.layer_order) ||
+          Number(left.component_id) - Number(right.component_id)
+        );
+      return [components, []];
+    }
+    if (/FROM monitors[\s\S]*WHERE UPPER\(pairing_code\)/i.test(normalized)) {
+      const pairingCode = String(params[0] || "").trim().toUpperCase();
+      const monitorId = params[1];
+      const monitor = data.monitors.find((row) =>
+        String(row.pairing_code || "").trim().toUpperCase() === pairingCode &&
+        (monitorId == null || Number(row.monitor_id) === Number(monitorId))
+      );
+      if (!monitor) return [[], []];
+      return [[{
+        monitor_id: monitor.monitor_id,
+        monitor_name: monitor.monitor_name,
+        monitor_category: monitor.monitor_category,
+        pairing_code: monitor.pairing_code,
+        pairing_expires_at: monitor.pairing_expires_at,
+        is_paired: monitor.is_paired,
+      }], []];
+    }
     const scheduleOverlap = fallbackScheduleOverlapQuery(normalized, params);
     if (scheduleOverlap) return [scheduleOverlap, []];
     const scheduleConflictRows = fallbackScheduleConflictRowsQuery(normalized, params);
@@ -1030,6 +1084,7 @@ async function query(sql, params = []) {
         display_power_schedules: "power_schedule_id",
         monitor_playlist_items: "playlist_item_id",
         monitor_playlist_pages: "playlist_page_id",
+        audit_logs: "audit_log_id",
       };
       const autoIncrementColumn = autoIncrementColumns[table];
       if (autoIncrementColumn) {
@@ -1056,6 +1111,15 @@ async function query(sql, params = []) {
       if (table === "components") {
         row.created_at ??= new Date().toISOString();
         row.updated_at ??= row.created_at;
+      }
+      if (table === "media_assets" || table === "audit_logs") {
+        const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+        if (table === "media_assets") {
+          row.uploaded_at ||= now;
+          row.updated_at ||= now;
+        } else {
+          row.created_at ||= now;
+        }
       }
       if (table === "monitors") {
         const monitors = data.monitors;
