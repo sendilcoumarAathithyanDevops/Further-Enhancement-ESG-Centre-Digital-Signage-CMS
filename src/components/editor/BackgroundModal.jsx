@@ -116,6 +116,13 @@ function BackgroundModal({ page, projectName, category, canvasWidth = DEFAULT_CA
   };
 
   const removeImage = () => {
+    if (
+      (initialImagePath || imagePath) &&
+      !window.confirm("Remove the background image from this page?")
+    ) {
+      return;
+    }
+
     if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
     setFile(null);
     setImagePath(null);

@@ -348,6 +348,37 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
+function auditAdminChanges(req, res, next) {
+  const user = req.session.user;
+  const method = req.method.toUpperCase();
+  if (
+    user?.role !== "admin" ||
+    !["POST", "PUT", "PATCH", "DELETE"].includes(method) ||
+    req.path === "/logout" ||
+    req.path.startsWith("/ai-support/")
+  ) {
+    return next();
+  }
+
+  const resource = req.originalUrl.split("?")[0].slice(0, 255);
+  const ipAddress = String(req.ip || "").slice(0, 45) || null;
+  res.once("finish", () => {
+    if (res.statusCode < 200 || res.statusCode >= 300) return;
+    db.query(
+      `INSERT INTO audit_logs
+       (actor_user_id, actor_username, action, resource, ip_address)
+       VALUES (?, ?, ?, ?, ?)`,
+      [user.user_id || null, user.username || "Administrator", method, resource, ipAddress]
+    ).catch((error) => {
+      console.error("Unable to record administrator audit log:", error);
+    });
+  });
+
+  return next();
+}
+
+app.use(auditAdminChanges);
+
 function parseJsonValue(value, fallback = {}) {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "object") return value;
@@ -1678,6 +1709,25 @@ async function refreshAIDashboardSnapshot() {
 app.get("/api/admin/dashboard", requireAdmin, async (req, res) => {
   try {
     const dashboard = await loadAdminDashboardData();
+    const auditCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    const [weeklyAuditLogs] = await db.query(
+      "SELECT * FROM audit_logs WHERE created_at >= ? ORDER BY created_at DESC",
+      [auditCutoff]
+    );
+    const [recentAuditLogs] = await db.query(
+      "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 8"
+    );
+    const formatAuditLog = (entry) => ({
+      id: entry.audit_log_id,
+      username: entry.actor_username,
+      action: entry.action,
+      resource: entry.resource,
+      ipAddress: entry.ip_address,
+      createdAt: entry.created_at,
+    });
     return res.json({
       success: true,
       user: {
@@ -1685,7 +1735,13 @@ app.get("/api/admin/dashboard", requireAdmin, async (req, res) => {
         username: req.session.user.username,
         role: req.session.user.role,
       },
-      dashboard,
+      dashboard: {
+        ...dashboard,
+        audit: {
+          lastSevenDays: weeklyAuditLogs.length,
+          recent: recentAuditLogs.map(formatAuditLog),
+        },
+      },
     });
   } catch (error) {
     console.error("Admin dashboard error:", error);
@@ -2509,10 +2565,33 @@ app.post(
   "/api/uploads/images",
   requireAuth,
   createUploadMiddleware("images", "files", true),
-  (req, res) => {
+  async (req, res) => {
     const files = Array.isArray(req.files) ? req.files : [];
     if (files.length === 0) {
       return res.status(400).json({ success: false, message: "Select at least one image." });
+    }
+
+    try {
+      await Promise.all(
+        files.map((file) =>
+          persistUploadedMedia("images", req.session.user.user_id, file)
+        )
+      );
+    } catch (error) {
+      await Promise.all(
+        files.map((file) =>
+          fs.promises.unlink(file.path).catch((cleanupError) => {
+            if (cleanupError.code !== "ENOENT") {
+              console.error("Unable to clean up failed media upload:", cleanupError);
+            }
+          })
+        )
+      );
+      console.error("Image media metadata error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save media information. Run the media catalog migration and try again.",
+      });
     }
 
     return res.status(201).json({
@@ -2531,9 +2610,24 @@ app.post(
   "/api/uploads/videos",
   requireAuth,
   createUploadMiddleware("videos", "file", false),
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "Select a video file." });
+    }
+
+    try {
+      await persistUploadedMedia("videos", req.session.user.user_id, req.file);
+    } catch (error) {
+      await fs.promises.unlink(req.file.path).catch((cleanupError) => {
+        if (cleanupError.code !== "ENOENT") {
+          console.error("Unable to clean up failed media upload:", cleanupError);
+        }
+      });
+      console.error("Video media metadata error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save media information. Run the media catalog migration and try again.",
+      });
     }
 
     return res.status(201).json({
@@ -2552,11 +2646,26 @@ app.post(
   "/api/uploads/backgrounds",
   requireAuth,
   createUploadMiddleware("backgrounds", "file", false),
-  (req, res) => {
+  async (req, res) => {
     if (!req.file) {
       return res.status(400).json({
         success: false,
         message: "Select a background image.",
+      });
+    }
+
+    try {
+      await persistUploadedMedia("backgrounds", req.session.user.user_id, req.file);
+    } catch (error) {
+      await fs.promises.unlink(req.file.path).catch((cleanupError) => {
+        if (cleanupError.code !== "ENOENT") {
+          console.error("Unable to clean up failed media upload:", cleanupError);
+        }
+      });
+      console.error("Background media metadata error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to save media information. Run the media catalog migration and try again.",
       });
     }
 
@@ -2596,6 +2705,341 @@ app.post(
     }
   }
 );
+
+const MEDIA_CATEGORIES = new Set(["environmental", "social", "governance"]);
+const MEDIA_KINDS = new Set(["images", "videos", "backgrounds"]);
+
+async function persistUploadedMedia(kind, userId, file) {
+  const mediaPath = getUploadedPublicPath(kind, userId, file);
+  await db.query(
+    `INSERT INTO media_assets
+     (media_path, original_name, mime_type, size_bytes, owner_user_id)
+     VALUES (?, ?, ?, ?, ?)`,
+    [mediaPath, file.originalname, file.mimetype, file.size, userId]
+  );
+}
+
+async function scanMediaFiles() {
+  const mediaFiles = [];
+  for (const kind of MEDIA_KINDS) {
+    const kindDirectory = path.join(UPLOAD_ROOT, kind);
+    const ownerDirectories = await fs.promises.readdir(kindDirectory, {
+      withFileTypes: true,
+    });
+    for (const ownerDirectory of ownerDirectories) {
+      if (!ownerDirectory.isDirectory()) continue;
+      const ownerDirectoryPath = path.join(kindDirectory, ownerDirectory.name);
+      const files = await fs.promises.readdir(ownerDirectoryPath, {
+        withFileTypes: true,
+      });
+      for (const entry of files) {
+        if (!entry.isFile()) continue;
+        const absolutePath = path.join(ownerDirectoryPath, entry.name);
+        const stats = await fs.promises.stat(absolutePath);
+        mediaFiles.push({
+          path: `/${path.relative(UPLOAD_ROOT, absolutePath).split(path.sep).join("/")}`,
+          kind,
+          fileName: entry.name,
+          ownerUserId: Number(ownerDirectory.name) || null,
+          size: stats.size,
+          modifiedAt: stats.mtime.toISOString(),
+        });
+      }
+    }
+  }
+  return mediaFiles;
+}
+
+function addMediaReference(referenceMap, mediaPath, reference) {
+  const safePath = cleanUploadPath(mediaPath);
+  if (!safePath) return;
+  const references = referenceMap.get(safePath) || [];
+  references.push(reference);
+  referenceMap.set(safePath, references);
+}
+
+function collectMediaPathsFromStyleJson(style, mediaPaths) {
+  if (!style || typeof style !== "object") return;
+  const visit = (value) => {
+    if (typeof value === "string") {
+      const safePath = cleanUploadPath(value);
+      if (safePath) mediaPaths.add(safePath);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (value && typeof value === "object") {
+      Object.values(value).forEach(visit);
+    }
+  };
+  visit(style);
+}
+
+async function loadMediaCatalog() {
+  const [files, metadataResult, canvasResult, componentResult, projectResult] =
+    await Promise.all([
+      scanMediaFiles(),
+      db.query("SELECT * FROM media_assets"),
+      db.query("SELECT * FROM canvases"),
+      db.query("SELECT * FROM components"),
+      db.query("SELECT * FROM projects"),
+    ]);
+  const metadataByPath = new Map(
+    metadataResult[0].map((record) => [record.media_path, record])
+  );
+  const canvasesById = new Map(
+    canvasResult[0].map((canvas) => [Number(canvas.canvas_id), canvas])
+  );
+  const projectsById = new Map(
+    projectResult[0].map((project) => [Number(project.project_id), project])
+  );
+  const referencesByPath = new Map();
+
+  for (const canvas of canvasResult[0]) {
+    const project = projectsById.get(Number(canvas.project_id));
+    const reference = {
+      projectId: canvas.project_id,
+      projectName: project?.name || "Unknown project",
+      projectCategory: project?.category || null,
+      projectStatus: project?.status || null,
+      canvasId: canvas.canvas_id,
+      canvasName: canvas.name,
+      usage: "Page background",
+    };
+    addMediaReference(referencesByPath, canvas.background_image_path, reference);
+  }
+
+  for (const component of componentResult[0]) {
+    const canvas = canvasesById.get(Number(component.canvas_id));
+    const project = canvas && projectsById.get(Number(canvas.project_id));
+    const reference = {
+      projectId: project?.project_id || null,
+      projectName: project?.name || "Unknown project",
+      projectCategory: project?.category || null,
+      projectStatus: project?.status || null,
+      canvasId: canvas?.canvas_id || component.canvas_id,
+      canvasName: canvas?.name || "Unknown page",
+      usage: component.type || "Media",
+    };
+    const componentMediaPaths = new Set();
+    const componentPath = cleanUploadPath(component.file_path);
+    if (componentPath) componentMediaPaths.add(componentPath);
+    collectMediaPathsFromStyleJson(
+      parseJsonValue(component.style_json, {}),
+      componentMediaPaths
+    );
+    for (const mediaPath of componentMediaPaths) {
+      addMediaReference(referencesByPath, mediaPath, reference);
+    }
+  }
+
+  return files.map((file) => {
+    const metadata = metadataByPath.get(file.path);
+    const references = referencesByPath.get(file.path) || [];
+    return {
+      ...file,
+      originalName: metadata?.original_name || file.fileName,
+      mimeType: metadata?.mime_type || null,
+      category: metadata?.category_tag || null,
+      uploadedAt: metadata?.uploaded_at || file.modifiedAt,
+      referenceCount: references.length,
+      references,
+    };
+  });
+}
+
+function filterMediaCatalog(media, query) {
+  const search = String(query.search || "").trim().toLowerCase();
+  const category = String(query.category || "").trim().toLowerCase();
+  const kind = String(query.kind || "").trim().toLowerCase();
+  return media.filter((file) => {
+    if (category && category !== "all" && file.category !== category) return false;
+    if (kind && kind !== "all" && file.kind !== kind) return false;
+    if (!search) return true;
+    return [file.originalName, file.fileName, file.path, file.kind]
+      .some((value) => String(value || "").toLowerCase().includes(search));
+  });
+}
+
+app.get("/api/admin/media", requireAdmin, async (req, res) => {
+  try {
+    const media = filterMediaCatalog(await loadMediaCatalog(), req.query);
+    return res.json({
+      success: true,
+      media,
+      total: media.length,
+      categories: [...MEDIA_CATEGORIES],
+    });
+  } catch (error) {
+    console.error("Media library error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load the media library. Check that the media catalog migration has been run.",
+    });
+  }
+});
+
+app.patch("/api/admin/media", requireAdmin, async (req, res) => {
+  try {
+    const mediaPath = cleanUploadPath(req.body.path);
+    const category =
+      req.body.category == null || req.body.category === ""
+        ? null
+        : String(req.body.category).trim().toLowerCase();
+    if (!mediaPath || !MEDIA_KINDS.has(mediaPath.split("/")[2])) {
+      return res.status(400).json({ success: false, message: "Invalid media path." });
+    }
+    if (category && !MEDIA_CATEGORIES.has(category)) {
+      return res.status(400).json({ success: false, message: "Invalid media category." });
+    }
+
+    const media = await loadMediaCatalog();
+    const file = media.find((item) => item.path === mediaPath);
+    if (!file) {
+      return res.status(404).json({ success: false, message: "Media file not found." });
+    }
+    const [existingRows] = await db.query(
+      "SELECT media_path FROM media_assets WHERE media_path = ?",
+      [mediaPath]
+    );
+    if (existingRows.length > 0) {
+      await db.query(
+        "UPDATE media_assets SET category_tag = ? WHERE media_path = ?",
+        [category, mediaPath]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO media_assets
+         (media_path, original_name, mime_type, size_bytes, owner_user_id, category_tag)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          mediaPath,
+          file.originalName,
+          file.mimeType || "application/octet-stream",
+          file.size,
+          file.ownerUserId,
+          category,
+        ]
+      );
+    }
+    return res.json({ success: true, path: mediaPath, category });
+  } catch (error) {
+    console.error("Media category update error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update the media category.",
+    });
+  }
+});
+
+app.get("/api/admin/audit-logs", requireAdmin, async (req, res) => {
+  try {
+    const limit = clamp(toInteger(req.query.limit, 50, 1), 1, 100);
+    const [rows] = await db.query(
+      `SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ${limit}`
+    );
+    return res.json({
+      success: true,
+      logs: rows.map((entry) => ({
+        id: entry.audit_log_id,
+        username: entry.actor_username,
+        action: entry.action,
+        resource: entry.resource,
+        ipAddress: entry.ip_address,
+        createdAt: entry.created_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Admin audit log error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load audit logs.",
+    });
+  }
+});
+
+app.get("/api/internal/displays", requireAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      `SELECT monitor_id, monitor_name, monitor_category, location, status,
+              last_connected_at
+       FROM monitors
+       ORDER BY monitor_id`
+    );
+    return res.json({ success: true, displays: rows });
+  } catch (error) {
+    console.error("Internal display API error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load displays." });
+  }
+});
+
+app.get("/api/internal/playlists", requireAdmin, async (req, res) => {
+  try {
+    const [itemsResult, pagesResult, projectResult] = await Promise.all([
+      db.query("SELECT * FROM monitor_playlist_items"),
+      db.query("SELECT * FROM monitor_playlist_pages"),
+      db.query("SELECT project_id, name, category, status FROM projects"),
+    ]);
+    const projectsById = new Map(
+      projectResult[0].map((project) => [Number(project.project_id), project])
+    );
+    const pagesByItem = new Map();
+    for (const page of pagesResult[0]) {
+      const pages = pagesByItem.get(Number(page.playlist_item_id)) || [];
+      pages.push(page);
+      pagesByItem.set(Number(page.playlist_item_id), pages);
+    }
+    const playlists = itemsResult[0]
+      .filter((item) => item.is_active === 1 || item.is_active === true)
+      .map((item) => ({
+        ...item,
+        project: projectsById.get(Number(item.project_id)) || null,
+        pages: (pagesByItem.get(Number(item.playlist_item_id)) || [])
+          .sort((left, right) => Number(left.page_order) - Number(right.page_order)),
+      }));
+    return res.json({ success: true, playlists });
+  } catch (error) {
+    console.error("Internal playlist API error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load playlists." });
+  }
+});
+
+app.get("/api/internal/schedules", requireAdmin, async (req, res) => {
+  try {
+    const [schedulesResult, displaysResult, projectsResult] = await Promise.all([
+      db.query("SELECT * FROM monitor_schedules"),
+      db.query("SELECT monitor_id, monitor_name FROM monitors"),
+      db.query("SELECT project_id, name, category FROM projects"),
+    ]);
+    const displaysById = new Map(
+      displaysResult[0].map((display) => [Number(display.monitor_id), display])
+    );
+    const projectsById = new Map(
+      projectsResult[0].map((project) => [Number(project.project_id), project])
+    );
+    const schedules = schedulesResult[0].map((schedule) => ({
+      ...schedule,
+      display: displaysById.get(Number(schedule.monitor_id)) || null,
+      project: projectsById.get(Number(schedule.project_id)) || null,
+    }));
+    return res.json({ success: true, schedules });
+  } catch (error) {
+    console.error("Internal schedule API error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load schedules." });
+  }
+});
+
+app.get("/api/internal/media", requireAdmin, async (req, res) => {
+  try {
+    const media = filterMediaCatalog(await loadMediaCatalog(), req.query);
+    return res.json({ success: true, media, total: media.length });
+  } catch (error) {
+    console.error("Internal media API error:", error);
+    return res.status(500).json({ success: false, message: "Unable to load media." });
+  }
+});
 
 app.delete("/api/uploads", requireAuth, async (req, res) => {
   try {

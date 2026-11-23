@@ -25,6 +25,7 @@ import ManageProjects from "./pages/ManageProjects";
 import Scheduler from "./pages/Scheduler";
 import ContentScheduler from "./pages/ContentScheduler";
 import DisplayManager from "./pages/DisplayManager";
+import MediaLibrary from "./pages/MediaLibrary";
 import DisplayScreen from "./pages/Display_Screen/DisplayScreen";
 import SharedWithMe from "./pages/SharedWithMe";
 import CanvasViewer from "./pages/CanvasViewer";
@@ -202,6 +203,15 @@ function AppWrapper() {
             element={
               <ProtectedRoute allowedRoles={["admin"]}>
                 <ManageProjects />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/media-library"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <MediaLibrary />
               </ProtectedRoute>
             }
           />

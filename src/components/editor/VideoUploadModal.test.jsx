@@ -45,6 +45,7 @@ describe("VideoUploadModal playback controls", () => {
 
   it("can remove an existing video from its widget", () => {
     const onDone = jest.fn();
+    const confirm = jest.spyOn(window, "confirm").mockReturnValue(true);
     render(
       <VideoUploadModal
         initialComponent={{ filePath: "/uploads/video.mp4", style: {} }}
@@ -59,5 +60,27 @@ describe("VideoUploadModal playback controls", () => {
     expect(onDone).toHaveBeenCalledWith(
       expect.objectContaining({ path: null })
     );
+    expect(confirm).toHaveBeenCalledWith("Remove this video from the widget?");
+    confirm.mockRestore();
+  });
+
+  it("keeps the existing video when removal is cancelled", () => {
+    const onDone = jest.fn();
+    const confirm = jest.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <VideoUploadModal
+        initialComponent={{ filePath: "/uploads/video.mp4", style: {} }}
+        onClose={jest.fn()}
+        onDone={onDone}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove video" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(onDone).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "/uploads/video.mp4" })
+    );
+    confirm.mockRestore();
   });
 });

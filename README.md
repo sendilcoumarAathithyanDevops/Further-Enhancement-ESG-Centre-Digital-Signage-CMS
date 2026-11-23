@@ -57,6 +57,27 @@ node Backend/migrations/add-default-monitor-category.js
 
 They use the SQL connection in `Backend/.env` and are safe to re-run. Do not re-import `FYP CMS System Database.sql` over a database containing data; the dump includes `DROP TABLE` statements.
 
+When using MySQL, run the additive media catalog and audit log migration before using the Media Library or performing uploads. The JSON fallback store creates these records automatically.
+
+```powershell
+node Backend/migrations/add-media-catalog-and-audit.js
+```
+
+Administrators can use **Media Library** to search and filter image/video uploads, assign Environmental, Social, or Governance tags, and inspect the canvases where each file is used. The Admin Dashboard shows recent administrator changes and a seven-day change count. Successful administrator changes are recorded with the account, HTTP action, resource path, IP address, and time; request bodies and credentials are not stored.
+
+Administrators can retrieve up to 100 audit entries with `GET /api/admin/audit-logs?limit=50`.
+
+The read-only internal endpoints require an authenticated administrator session:
+
+| Endpoint | Information |
+| --- | --- |
+| `GET /api/internal/displays` | Display status and category |
+| `GET /api/internal/playlists` | Active playlist items and page assignments |
+| `GET /api/internal/schedules` | Content schedules with display/project details |
+| `GET /api/internal/media` | Uploaded media, category tags, and canvas usage |
+
+Media results can be filtered with `search`, `category`, and `kind` query parameters. For example, `/api/internal/media?category=social&kind=images`.
+
 The two SQL databases are **not automatically synchronized**. The local database must be populated and kept current separately; this connection failover alone does not replicate data or copy writes back to Railway. Keep all database passwords in the ignored `Backend/.env` file and never commit them.
 
 ## AI Support with Ollama
