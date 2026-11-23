@@ -287,13 +287,24 @@ function BackgroundModal({ page, projectName, category, canvasWidth = DEFAULT_CA
         <section className="background-control-panel" aria-label="Background controls">
           <label
             className="media-dropzone media-dropzone--small"
-            onDragOver={(event) => event.preventDefault()}
+            aria-disabled={uploading}
+            onDragOver={(event) => {
+              if (!uploading) event.preventDefault();
+            }}
             onDrop={(event) => {
               event.preventDefault();
-              chooseFile(event.dataTransfer.files?.[0]);
+              if (!uploading) chooseFile(event.dataTransfer.files?.[0]);
             }}
           >
-            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseFile(event.target.files?.[0])} />
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              disabled={uploading}
+              onChange={(event) => {
+                if (event.target.files?.[0]) chooseFile(event.target.files[0]);
+                event.target.value = "";
+              }}
+            />
             <strong>{previewUrl ? "Change background image" : "Upload background image"}</strong>
             <span>PNG, JPG, JPEG, or WebP · Maximum 20 MB</span>
           </label>
@@ -330,12 +341,12 @@ function BackgroundModal({ page, projectName, category, canvasWidth = DEFAULT_CA
 
           <label className="editor-modal-field">
             <span>Colour opacity: {Math.round(Number(colourOpacity) * 100)}%</span>
-            <input type="range" min="0" max="1" step="0.01" value={colourOpacity} onChange={(event) => setColourOpacity(Number(event.target.value))} />
+            <input type="range" min="0" max="1" step="0.01" value={colourOpacity} aria-label="Background colour opacity" onChange={(event) => setColourOpacity(Number(event.target.value))} />
           </label>
 
           <label className="editor-modal-field">
             <span>Image opacity: {Math.round(Number(imageOpacity) * 100)}%</span>
-            <input type="range" min="0" max="1" step="0.01" value={imageOpacity} onChange={(event) => setImageOpacity(Number(event.target.value))} disabled={!previewUrl} />
+            <input type="range" min="0" max="1" step="0.01" value={imageOpacity} aria-label="Background image opacity" onChange={(event) => setImageOpacity(Number(event.target.value))} disabled={!previewUrl} />
           </label>
 
           <label className="editor-modal-field">
@@ -349,17 +360,17 @@ function BackgroundModal({ page, projectName, category, canvasWidth = DEFAULT_CA
 
           <label className="editor-modal-field">
             <span>Zoom: {Math.round(Number(imageScale) * 100)}%</span>
-            <input type="range" min="0.1" max="4" step="0.01" value={imageScale} onChange={(event) => setImageScale(Number(event.target.value))} disabled={!previewUrl} />
+            <input type="range" min="0.1" max="4" step="0.01" value={imageScale} aria-label="Background image zoom" onChange={(event) => setImageScale(Number(event.target.value))} disabled={!previewUrl} />
           </label>
 
           <label className="editor-modal-field">
             <span>Position X: {Math.round(Number(imageX))}%</span>
-            <input type="range" min="0" max="100" step="1" value={imageX} onChange={(event) => setImageX(Number(event.target.value))} disabled={!previewUrl} />
+            <input type="range" min="0" max="100" step="1" value={imageX} aria-label="Background image horizontal position" onChange={(event) => setImageX(Number(event.target.value))} disabled={!previewUrl} />
           </label>
 
           <label className="editor-modal-field">
             <span>Position Y: {Math.round(Number(imageY))}%</span>
-            <input type="range" min="0" max="100" step="1" value={imageY} onChange={(event) => setImageY(Number(event.target.value))} disabled={!previewUrl} />
+            <input type="range" min="0" max="100" step="1" value={imageY} aria-label="Background image vertical position" onChange={(event) => setImageY(Number(event.target.value))} disabled={!previewUrl} />
           </label>
         </section>
       </div>

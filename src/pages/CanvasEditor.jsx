@@ -194,7 +194,6 @@ function CanvasEditor() {
   const [loadError, setLoadError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [showPreview, setShowPreview] = useState(false);
-  const [originalPages, setOriginalPages] = useState([]);
   const [validationErrors, setValidationErrors] = useState({});
   const [isDirty, setIsDirty] = useState(false);
   const temporaryUploadsRef = useRef(new Set());
@@ -204,12 +203,6 @@ function CanvasEditor() {
     () => pages.find((page) => page.clientId === selectedPageId) || pages[0],
     [pages, selectedPageId]
   );
-
-  useEffect(() => {
-    if (!isEditing && originalPages.length === 0 && pages.length > 0) {
-      setOriginalPages(structuredClone(pages));
-    }
-  }, [isEditing, pages, originalPages]);
 
   useEffect(() => {
     if (!isEditing) return undefined;
@@ -240,7 +233,6 @@ function CanvasEditor() {
         setDescription(data.project.description || "");
         setCategory(data.project.category || "");
         setPages(nextPages);
-        setOriginalPages(structuredClone(nextPages));
         setSelectedPageId(nextPages[0].clientId);
         setSelectedWidgetId(null);
         setProjectRole(data.role || "owner");
@@ -408,6 +400,18 @@ function CanvasEditor() {
       )
     );
     markDirty();
+  };
+
+  const handleBackgroundColorChange = (event) => {
+    const backgroundColor = event.target.value;
+    updateSelectedPage((page) => ({
+      ...page,
+      backgroundColor,
+      backgroundSettings: {
+        ...normaliseBackgroundSettings(page.backgroundSettings || {}),
+        backgroundColor,
+      },
+    }));
   };
 
   const deleteUpload = async (path) => {
@@ -848,46 +852,22 @@ function CanvasEditor() {
 
     if (!currentPage) return;
 
-    const originalPage = originalPages.find(
-      (page) => page.clientId === currentPage.clientId
-    ) || originalPages.find((page) => page.order === currentPage.order);
-
-    if (!originalPage) return;
-
-    setPages((currentPages) =>
-      currentPages.map((page) => {
-        if (page.clientId !== selectedPageId) {
-          return page;
-        }
-
-        const resetComponents = page.components.map((component) => {
-          const componentKey = widgetKey(component);
-          const originalComponent = originalPage.components.find(
-            (item) => widgetKey(item) === componentKey
-          );
-
-          if (!originalComponent) {
-            return component;
+    const blankPage = createPageFromTemplate("blank", currentPage.order);
+    const nextPages = pages.map((page) =>
+      page.clientId === selectedPageId
+        ? {
+            ...page,
+            components: [],
+            backgroundColor: blankPage.backgroundColor,
+            backgroundImagePath: blankPage.backgroundImagePath,
+            backgroundSettings: blankPage.backgroundSettings,
+            transitionSettings: blankPage.transitionSettings,
           }
-
-          return {
-            ...component,
-            positionX: originalComponent.positionX,
-            positionY: originalComponent.positionY,
-            width: originalComponent.width,
-            height: originalComponent.height,
-            rotation: originalComponent.rotation,
-            layerOrder: originalComponent.layerOrder,
-          };
-        });
-
-        return {
-          ...page,
-          components: resetComponents,
-        };
-      })
+        : page
     );
-
+    setPages(nextPages);
+    cleanupUnusedTemporaryPaths(nextPages);
+    setModal(null);
     setSelectedWidgetId(null);
     markDirty();
   };
@@ -918,10 +898,6 @@ function CanvasEditor() {
     ];
 
     setPages(nextPages);
-    setOriginalPages((currentOriginalPages) => [
-      ...currentOriginalPages,
-      structuredClone(duplicatedPage),
-    ]);
     setSelectedPageId(duplicatedPage.clientId);
     setSelectedWidgetId(null);
     markDirty();
@@ -1181,6 +1157,19 @@ function CanvasEditor() {
               </span>
 
               <div className="canvas-stage-card__button-row">
+                <label className="canvas-stage-card__color-picker" title="Change page background colour">
+                  <span>Background</span>
+                  <input
+                    type="color"
+                    aria-label="Page background colour"
+                    value={
+                      /^#[0-9a-f]{6}$/i.test(selectedPage?.backgroundColor || "")
+                        ? selectedPage.backgroundColor
+                        : "#ffffff"
+                    }
+                    onChange={handleBackgroundColorChange}
+                  />
+                </label>
                 <button
                   type="button"
                   className="canvas-stage-card__action-btn"
