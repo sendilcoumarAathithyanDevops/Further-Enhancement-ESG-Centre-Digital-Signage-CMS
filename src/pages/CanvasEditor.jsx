@@ -181,10 +181,15 @@ function CanvasEditor() {
       ? "← Back to Manage Projects"
       : "← Back to My Canvas";
   const categoryOptions = isAdmin ? ADMIN_CATEGORY_OPTIONS : CATEGORY_OPTIONS;
+  const initialTemplateCategory =
+    !isEditing &&
+    categoryOptions.some((option) => option.value === selectedTemplateData?.category)
+      ? selectedTemplateData.category
+      : "";
 
   const [projectName, setProjectName] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(initialTemplateCategory);
   const [pages, setPages] = useState(() =>createPagesFromTemplate(selectedTemplateData));
   const [selectedPageId, setSelectedPageId] = useState(() => pages[0]?.clientId || "");
   const [selectedWidgetId, setSelectedWidgetId] = useState(null);
@@ -907,16 +912,24 @@ function CanvasEditor() {
     const errors = {};
 
     if (!projectName.trim()) errors.projectName = "Project name is required.";
-    if (!description.trim()) errors.description = "Project description is required.";
     if (!categoryOptions.some((option) => option.value === category)) {
       errors.category = "Please select a category.";
     }
+    if (!description.trim()) errors.description = "Project description is required.";
     if (pages.length === 0) errors.pages = "The project must have at least one page.";
     if (pages.some((page) => !page.name.trim())) {
       errors.pages = "Every page must have a name.";
     }
 
     setValidationErrors(errors);
+    const firstInvalidField = errors.projectName
+      ? document.getElementById("project-name")
+      : errors.category
+        ? document.getElementById("project-category")
+        : errors.description
+          ? document.getElementById("project-description")
+          : null;
+    firstInvalidField?.focus();
     return Object.keys(errors).length === 0;
   };
 
@@ -1078,22 +1091,28 @@ function CanvasEditor() {
           <label className="editor-field">
             <span>Project Name</span>
             <input
+              id="project-name"
               type="text"
               value={projectName}
               maxLength={150}
               placeholder="Enter the project name"
               onChange={handleFieldChange(setProjectName)}
               aria-invalid={Boolean(validationErrors.projectName)}
+              aria-describedby={validationErrors.projectName ? "project-name-error" : undefined}
             />
-            {validationErrors.projectName && <small>{validationErrors.projectName}</small>}
+            {validationErrors.projectName && (
+              <small id="project-name-error">{validationErrors.projectName}</small>
+            )}
           </label>
 
           <label className="editor-field">
             <span>Category</span>
             <select
+              id="project-category"
               value={category}
               onChange={handleFieldChange(setCategory)}
               aria-invalid={Boolean(validationErrors.category)}
+              aria-describedby={validationErrors.category ? "project-category-error" : undefined}
             >
               <option value="">Select a category</option>
               {categoryOptions.map((option) => (
@@ -1102,21 +1121,29 @@ function CanvasEditor() {
                 </option>
               ))}
             </select>
-            {validationErrors.category && <small>{validationErrors.category}</small>}
+            {validationErrors.category && (
+              <small id="project-category-error">{validationErrors.category}</small>
+            )}
           </label>
 
           <label className="editor-field editor-field--full">
             <span>Project Description</span>
             <textarea
+              id="project-description"
               value={description}
               rows={4}
               maxLength={2000}
               placeholder="Describe the project and what visitors should learn from it"
               onChange={handleFieldChange(setDescription)}
               aria-invalid={Boolean(validationErrors.description)}
+              aria-describedby={
+                validationErrors.description ? "project-description-error" : undefined
+              }
             />
             <div className="editor-field__footer">
-              {validationErrors.description ? <small>{validationErrors.description}</small> : <span />}
+              {validationErrors.description ? (
+                <small id="project-description-error">{validationErrors.description}</small>
+              ) : <span />}
               <span>{description.length}/2000</span>
             </div>
           </label>
@@ -1174,7 +1201,8 @@ function CanvasEditor() {
                   type="button"
                   className="canvas-stage-card__action-btn"
                   onClick={() => setShowPreview(true)}
-                  title="Preview"
+                  title="Preview current page"
+                  aria-label="Preview current page"
                 >
                   👁
                 </button>
@@ -1183,7 +1211,8 @@ function CanvasEditor() {
                   type="button"
                   className="canvas-stage-card__action-btn"
                   onClick={() => setModal({ type: "transition" })}
-                  title="Page Transition"
+                  title="Set page transition"
+                  aria-label="Set page transition"
                 >
                   🎬
                 </button>
@@ -1193,7 +1222,8 @@ function CanvasEditor() {
                     type="button"
                     className="canvas-stage-card__action-btn"
                     onClick={handleResetLayout}
-                    title="Reset Layout"
+                    title="Reset layout to template defaults"
+                    aria-label="Reset layout to template defaults"
                   >
                     🔄
                   </button>
