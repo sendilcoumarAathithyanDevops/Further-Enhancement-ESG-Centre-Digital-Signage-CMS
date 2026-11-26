@@ -18,6 +18,11 @@
   background: #f1f8f3;
 }
 
+.media-dropzone[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 .media-dropzone input {
   position: absolute;
   width: 1px;

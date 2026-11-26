@@ -170,7 +170,6 @@ function TemplateEditor() {
     const [loadError, setLoadError] = useState("");
     const [saveError, setSaveError] = useState("");
     const [showPreview, setShowPreview] = useState(false);
-    const [originalPages, setOriginalPages] = useState([]);
     const [validationErrors, setValidationErrors] = useState({});
     const [isDirty, setIsDirty] = useState(false);
     const temporaryUploadsRef = useRef(new Set());
@@ -179,12 +178,6 @@ function TemplateEditor() {
         () => pages.find((page) => page.clientId === selectedPageId) || pages[0],
         [pages, selectedPageId]
     );
-
-    useEffect(() => {
-        if (!isEditing && originalPages.length === 0 && pages.length > 0) {
-            setOriginalPages(structuredClone(pages));
-        }
-    }, [isEditing, pages, originalPages]);
 
     useEffect(() => {
         if (isEditing || pages.length > 0) return;
@@ -225,7 +218,6 @@ function TemplateEditor() {
                 setCategory(data.template.category || "");
 
                 setPages(nextPages);
-                setOriginalPages(structuredClone(nextPages));
                 setSelectedPageId(nextPages[0].clientId);
                 setSelectedWidgetId(null);
                 temporaryUploadsRef.current.clear();
@@ -392,6 +384,18 @@ function TemplateEditor() {
             )
         );
         markDirty();
+    };
+
+    const handleBackgroundColorChange = (event) => {
+        const backgroundColor = event.target.value;
+        updateSelectedPage((page) => ({
+            ...page,
+            backgroundColor,
+            backgroundSettings: {
+                ...normaliseBackgroundSettings(page.backgroundSettings || {}),
+                backgroundColor,
+            },
+        }));
     };
 
     const deleteUpload = async (path) => {
@@ -832,44 +836,22 @@ function TemplateEditor() {
 
         if (!currentPage) return;
 
-        const originalPage = originalPages.find(
-            (page) => page.order === currentPage.order
-        );
-
-        if (!originalPage) return;
-
-        setPages((currentPages) =>
-            currentPages.map((page) => {
-                if (page.clientId !== selectedPageId) {
-                    return page;
-                }
-
-                const resetComponents = page.components.map((component, index) => {
-                    const originalComponent =
-                        originalPage.components[index];
-
-                    if (!originalComponent) {
-                        return component;
-                    }
-
-                    return {
-                        ...component,
-                        positionX: originalComponent.positionX,
-                        positionY: originalComponent.positionY,
-                        width: originalComponent.width,
-                        height: originalComponent.height,
-                        rotation: originalComponent.rotation,
-                        layerOrder: originalComponent.layerOrder,
-                    };
-                });
-
-                return {
+        const blankPage = createPageFromTemplate("blank", currentPage.order);
+        const nextPages = pages.map((page) =>
+            page.clientId === selectedPageId
+                ? {
                     ...page,
-                    components: resetComponents,
-                };
-            })
+                    components: [],
+                    backgroundColor: blankPage.backgroundColor,
+                    backgroundImagePath: blankPage.backgroundImagePath,
+                    backgroundSettings: blankPage.backgroundSettings,
+                    transitionSettings: blankPage.transitionSettings,
+                }
+                : page
         );
-
+        setPages(nextPages);
+        cleanupUnusedTemporaryPaths(nextPages);
+        setModal(null);
         setSelectedWidgetId(null);
         markDirty();
     };
@@ -1061,7 +1043,14 @@ function TemplateEditor() {
                     </p>
                 </div>
 
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="canvas-editor-header__actions">
+                    <button
+                        type="button"
+                        className="canvas-editor-cancel"
+                        onClick={() => setShowPreview(true)}
+                    >
+                        Preview
+                    </button>
                     <button
                         type="button"
                         className="canvas-editor-save"
@@ -1170,15 +1159,19 @@ function TemplateEditor() {
                             </span>
 
                             <div className="canvas-stage-card__button-row">
-                                <button
-                                    type="button"
-                                    className="canvas-stage-card__action-btn"
-                                    onClick={() => setShowPreview(true)}
-                                    title="Preview"
-                                >
-                                    👁
-                                </button>
-
+                                <label className="canvas-stage-card__color-picker" title="Change page background colour">
+                                    <span>Background</span>
+                                    <input
+                                        type="color"
+                                        aria-label="Page background colour"
+                                        value={
+                                            /^#[0-9a-f]{6}$/i.test(selectedPage?.backgroundColor || "")
+                                                ? selectedPage.backgroundColor
+                                                : "#ffffff"
+                                        }
+                                        onChange={handleBackgroundColorChange}
+                                    />
+                                </label>
                                 <button
                                     type="button"
                                     className="canvas-stage-card__action-btn"
@@ -1228,6 +1221,13 @@ function TemplateEditor() {
 
             <div className="canvas-editor-mobile-actions">
                 <button type="button" className="button-back" onClick={handleBack}>Back</button>
+                <button
+                    type="button"
+                    className="canvas-editor-cancel"
+                    onClick={() => setShowPreview(true)}
+                >
+                    Preview
+                </button>
                 <button type="button" className="canvas-editor-save" onClick={handleSave} disabled={saving}>
                     {saving
                         ? isEditing ? "Saving…" : "Creating…"

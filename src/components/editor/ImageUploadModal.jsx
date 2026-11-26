@@ -190,14 +190,24 @@ function ImageUploadModal({ onClose, onDone, initialComponent, singleImage = fal
 
       <label
         className="media-dropzone"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => { event.preventDefault(); addFiles(event.dataTransfer.files); }}
+        aria-disabled={uploading}
+        onDragOver={(event) => {
+          if (!uploading) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          if (!uploading) addFiles(event.dataTransfer.files);
+        }}
       >
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
           multiple={!singleImage}
-          onChange={(event) => addFiles(event.target.files)}
+          disabled={uploading}
+          onChange={(event) => {
+            if (event.target.files?.length) addFiles(event.target.files);
+            event.target.value = "";
+          }}
         />
         <strong>
           {singleImage ? "Select or drag one image here" : "Select or drag image files here"}
@@ -210,7 +220,12 @@ function ImageUploadModal({ onClose, onDone, initialComponent, singleImage = fal
           <div className="image-editor-thumbnails" aria-label="Selected images">
             {items.map((item, index) => (
               <div key={item.id} className={`image-thumbnail ${item.id === activeItem?.id ? "is-active" : ""}`}>
-                <button type="button" onClick={() => setActiveId(item.id)}>
+                <button
+                  type="button"
+                  onClick={() => setActiveId(item.id)}
+                  aria-label={`Crop ${item.file.name}`}
+                  aria-pressed={item.id === activeItem?.id}
+                >
                   <img src={item.previewUrl} alt={`Selected upload ${index + 1}`} />
                   <span>{item.file.name}</span>
                 </button>
@@ -257,11 +272,11 @@ function ImageUploadModal({ onClose, onDone, initialComponent, singleImage = fal
 
               <label className="editor-modal-field">
                 <span>Horizontal crop focus: {activeItem.focusX}%</span>
-                <input type="range" min="0" max="100" value={activeItem.focusX} onChange={(event) => updateActive({ focusX: event.target.value })} />
+                <input type="range" min="0" max="100" value={activeItem.focusX} aria-label={`Horizontal crop focus for ${activeItem.file.name}`} onChange={(event) => updateActive({ focusX: event.target.value })} />
               </label>
               <label className="editor-modal-field">
                 <span>Vertical crop focus: {activeItem.focusY}%</span>
-                <input type="range" min="0" max="100" value={activeItem.focusY} onChange={(event) => updateActive({ focusY: event.target.value })} />
+                <input type="range" min="0" max="100" value={activeItem.focusY} aria-label={`Vertical crop focus for ${activeItem.file.name}`} onChange={(event) => updateActive({ focusY: event.target.value })} />
               </label>
             </div>
           )}

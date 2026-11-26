@@ -214,7 +214,12 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
       <div className="editor-modal-grid">
         <label className="editor-modal-field">
           <span>Text colour</span>
-          <input type="color" value={color} onChange={(event) => setColor(event.target.value)} />
+          <input
+            type="color"
+            value={color}
+            aria-label="Text colour"
+            onChange={(event) => setColor(event.target.value)}
+          />
         </label>
 
         <label className="editor-modal-field">
@@ -222,6 +227,7 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
           <input
             type="color"
             value={backgroundColor}
+            aria-label="Box colour"
             onChange={(event) => setBackgroundColor(event.target.value)}
           />
         </label>
@@ -281,6 +287,7 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
             max="1"
             step="0.05"
             value={backgroundOpacity}
+            aria-label="Box opacity"
             onChange={(event) => setBackgroundOpacity(event.target.value)}
           />
         </label>
@@ -292,6 +299,7 @@ function TextWidgetModal({ mode = "text", initialComponent, onClose, onDone }) {
             max="48"
             step="2"
             value={padding}
+            aria-label="Box padding"
             onChange={(event) => setPadding(Number(event.target.value))}
           />
         </label>

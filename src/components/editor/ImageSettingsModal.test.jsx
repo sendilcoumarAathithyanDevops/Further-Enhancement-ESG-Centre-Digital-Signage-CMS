@@ -53,4 +53,32 @@ describe("ImageSettingsModal", () => {
       })
     );
   });
+
+  it("announces which slideshow image is selected for crop editing", () => {
+    render(
+      <ImageSettingsModal
+        component={{
+          ...component,
+          style: {
+            ...component.style,
+            displayMode: "slideshow",
+            imagePaths: ["/uploads/first.jpg", "/uploads/second.jpg"],
+            imageSettings: [{}, {}],
+          },
+        }}
+        onClose={jest.fn()}
+        onDone={jest.fn()}
+      />
+    );
+
+    const firstImage = screen.getByRole("button", { name: "Edit crop for image 1" });
+    const secondImage = screen.getByRole("button", { name: "Edit crop for image 2" });
+    expect(firstImage.getAttribute("aria-pressed")).toBe("true");
+    expect(secondImage.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(secondImage);
+
+    expect(firstImage.getAttribute("aria-pressed")).toBe("false");
+    expect(secondImage.getAttribute("aria-pressed")).toBe("true");
+  });
 });

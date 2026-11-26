@@ -100,17 +100,21 @@ function CanvasPageTabs({
                     <button
                       type="button"
                       onClick={() => onMove(page.clientId, -1)}
-                      title="Move Up"
+                      disabled={index === 0}
+                      title={`Move ${page.name} earlier`}
+                      aria-label={`Move ${page.name} earlier`}
                     >
                       ←
                     </button>
                     <button
-                    type="button"
-                    onClick={() => onMove(page.clientId, 1)}
-                    title="Move Down"
-                  >
-                    →
-                  </button>
+                      type="button"
+                      onClick={() => onMove(page.clientId, 1)}
+                      disabled={index === pages.length - 1}
+                      title={`Move ${page.name} later`}
+                      aria-label={`Move ${page.name} later`}
+                    >
+                      →
+                    </button>
                     <button
                       type="button"
                       onClick={() => onDuplicate(page.clientId)}

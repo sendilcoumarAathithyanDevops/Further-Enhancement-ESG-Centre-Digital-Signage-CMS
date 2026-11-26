@@ -103,7 +103,12 @@ function ImageSettingsModal({ component, onClose, onDone, onReplace }) {
         <div className="image-editor-thumbnails">
           {settings.map((item, index) => (
             <div key={`${item.path}-${index}`} className={`image-thumbnail ${index === activeIndex ? "is-active" : ""}`}>
-              <button type="button" onClick={() => setActiveIndex(index)}>
+              <button
+                type="button"
+                onClick={() => setActiveIndex(index)}
+                aria-label={`Edit crop for image ${index + 1}`}
+                aria-pressed={index === activeIndex}
+              >
                 <img src={resolveMediaUrl(item.path)} alt={`Slideshow item ${index + 1}`} />
                 <span>Image {index + 1}</span>
               </button>
@@ -141,11 +146,11 @@ function ImageSettingsModal({ component, onClose, onDone, onReplace }) {
             </div>
             <label className="editor-modal-field">
               <span>Horizontal crop focus: {active.focusX}%</span>
-              <input type="range" min="0" max="100" value={active.focusX} onChange={(event) => updateActive({ focusX: Number(event.target.value) })} />
+              <input type="range" min="0" max="100" value={active.focusX} aria-label={`Horizontal crop focus for image ${activeIndex + 1}`} onChange={(event) => updateActive({ focusX: Number(event.target.value) })} />
             </label>
             <label className="editor-modal-field">
               <span>Vertical crop focus: {active.focusY}%</span>
-              <input type="range" min="0" max="100" value={active.focusY} onChange={(event) => updateActive({ focusY: Number(event.target.value) })} />
+              <input type="range" min="0" max="100" value={active.focusY} aria-label={`Vertical crop focus for image ${activeIndex + 1}`} onChange={(event) => updateActive({ focusY: Number(event.target.value) })} />
             </label>
             {initialStyle.displayMode === "slideshow" && (
               <label className="editor-modal-field">
