@@ -11,6 +11,24 @@ const TEMPLATE_CHOICES = [
   { label: "Event announcement", category: "general" },
   { label: "Video presentation", category: "general" },
 ];
+const PROMPT_STARTERS = {
+  schedule:
+    "Help me plan a content schedule for [project or campaign]. Suggest a posting cadence, dates, times, and content themes; ask me for any missing details. Do not save it yet.",
+  content:
+    "Help me create concise digital-signage content for [topic or campaign], with a headline, short body, and call to action.",
+  format:
+    "Format this for a digital-signage slide with a short headline, concise body, and clear call to action: [paste content]",
+};
+
+function getFollowUpPrompt(text) {
+  if (/\b(?:schedule|scheduling|calendar|cadence)\b/i.test(text)) {
+    return "Refine the schedule plan with the project, target display, dates, and preferred posting times.";
+  }
+  if (/\b(?:content|caption|headline|title|copy|format)\b/i.test(text)) {
+    return "Revise your previous draft to be clearer and more concise for a digital-signage slide.";
+  }
+  return "Please continue with the next step from your previous answer.";
+}
 
 function isTemplateCreationRequest(text) {
   const mentionsTemplate = /\b(?:templates?|layouts?)\b/i.test(text);
@@ -127,6 +145,7 @@ export default function AISupportBubble() {
         ...current,
         { role: "assistant", content: data.message, tool: data.tool },
       ]);
+      setInput(getFollowUpPrompt(text));
     } catch (error) {
       setMessages((current) => [
         ...current,
@@ -172,6 +191,7 @@ export default function AISupportBubble() {
           tool: { label: "Confirmed template creation" },
         },
       ]);
+      setInput("Create matching signage content for the template I just made.");
     } catch (error) {
       setMessages((current) => [
         ...current,
@@ -262,6 +282,34 @@ export default function AISupportBubble() {
           </header>
 
           <nav className="ai-support-tools" aria-label="Available AI tools">
+            <button
+              type="button"
+              onClick={() => setInput(PROMPT_STARTERS.schedule)}
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              Make a schedule
+            </button>
+            <button
+              type="button"
+              onClick={() => setInput("Create a template")}
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              Make a template
+            </button>
+            <button
+              type="button"
+              onClick={() => setInput(PROMPT_STARTERS.content)}
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              Make content
+            </button>
+            <button
+              type="button"
+              onClick={() => setInput(PROMPT_STARTERS.format)}
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              Format content
+            </button>
             <button
               type="button"
               onClick={() => setInput("Show me all upcoming content schedules.")}

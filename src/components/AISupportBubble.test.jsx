@@ -187,6 +187,45 @@ describe("AI support template creation", () => {
     expect(screen.queryByRole("button", { name: "Dashboard summary" })).not.toBeInTheDocument();
   });
 
+  it("prefills editable prompts for scheduling, templates, and content", () => {
+    localStorage.setItem("user", JSON.stringify({ role: "producer" }));
+    render(<AISupportBubble />);
+    fireEvent.click(screen.getByRole("button", { name: "Open AI support chat" }));
+
+    const input = screen.getByRole("textbox", { name: "Support message" });
+    fireEvent.click(screen.getByRole("button", { name: "Make a schedule" }));
+    expect(input.value).toContain("plan a content schedule");
+
+    fireEvent.click(screen.getByRole("button", { name: "Format content" }));
+    expect(input.value).toContain("digital-signage slide");
+
+    fireEvent.click(screen.getByRole("button", { name: "Make a template" }));
+    expect(input).toHaveValue("Create a template");
+  });
+
+  it("prefills a contextual follow-up after the assistant replies", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        message: "Here is a concise campaign caption.",
+      }),
+    });
+    render(<AISupportBubble />);
+    fireEvent.click(screen.getByRole("button", { name: "Open AI support chat" }));
+
+    const input = screen.getByRole("textbox", { name: "Support message" });
+    fireEvent.change(input, {
+      target: { value: "Write content for a water conservation campaign." },
+    });
+    fireEvent.submit(input.closest("form"));
+
+    expect(await screen.findByText("Here is a concise campaign caption.")).toBeInTheDocument();
+    expect(input).toHaveValue(
+      "Revise your previous draft to be clearer and more concise for a digital-signage slide."
+    );
+  });
+
   it("offers upcoming schedules to producers and sends the request to AI Support", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
