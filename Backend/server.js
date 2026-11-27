@@ -23,6 +23,11 @@ const http = require("http");
 const { Server } = require("socket.io");
 const os = require("os");
 const templateRoutes = require("./routes/templateRoutes");
+const {
+  formatUpcomingSchedules,
+  isUpcomingSchedulesRequest,
+  loadUpcomingSchedules,
+} = require("./aiScheduleAssistant");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1336,6 +1341,32 @@ app.post("/ai-support/chat", async (req, res) => {
     /\b(?:dashboard|overview|summary|statistics|stats|users?|projects?|drafts?|published|archived|displays?|monitors?|screens?)\b/i.test(
       latestUserMessage || ""
     );
+
+  if (isUpcomingSchedulesRequest(latestUserMessage)) {
+    try {
+      const rows = await loadUpcomingSchedules(db);
+      const result = formatUpcomingSchedules(rows, req.body.timeZone);
+      return res.json({
+        success: true,
+        message: result.message,
+        tool: {
+          name: "upcoming_content_schedules",
+          label: "Upcoming schedules",
+        },
+        data: {
+          count: result.schedules.length,
+          truncated: result.truncated,
+          schedules: result.schedules,
+        },
+      });
+    } catch (error) {
+      console.error("AI upcoming schedules query error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Unable to retrieve upcoming schedules right now.",
+      });
+    }
+  }
 
   if (asksForDisplayStatus) {
     if (user.role !== "admin") {

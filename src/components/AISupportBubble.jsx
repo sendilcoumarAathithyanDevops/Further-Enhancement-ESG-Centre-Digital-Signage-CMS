@@ -114,7 +114,10 @@ export default function AISupportBubble() {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ messages: nextMessages }),
+        body: JSON.stringify({
+          messages: nextMessages,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -259,6 +262,13 @@ export default function AISupportBubble() {
           </header>
 
           <nav className="ai-support-tools" aria-label="Available AI tools">
+            <button
+              type="button"
+              onClick={() => setInput("Show me all upcoming content schedules.")}
+              disabled={loading || Boolean(templateFlow) || Boolean(pendingTemplateUse)}
+            >
+              Upcoming schedules
+            </button>
             {getStoredUserRole() === "admin" && (
               <>
                 <button

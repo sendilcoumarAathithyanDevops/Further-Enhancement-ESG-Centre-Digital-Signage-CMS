@@ -187,6 +187,38 @@ describe("AI support template creation", () => {
     expect(screen.queryByRole("button", { name: "Dashboard summary" })).not.toBeInTheDocument();
   });
 
+  it("offers upcoming schedules to producers and sends the request to AI Support", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        message: "Upcoming and active content schedules:\n- Water Conservation",
+        tool: {
+          name: "upcoming_content_schedules",
+          label: "Upcoming schedules",
+        },
+      }),
+    });
+    localStorage.setItem("user", JSON.stringify({ role: "producer" }));
+    render(<AISupportBubble />);
+    fireEvent.click(screen.getByRole("button", { name: "Open AI support chat" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upcoming schedules" }));
+    fireEvent.submit(screen.getByRole("textbox", { name: "Support message" }).closest("form"));
+
+    expect(await screen.findByText(/Water Conservation/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Upcoming schedules", { selector: ".ai-support-tool-badge" })
+    ).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://localhost:5000/ai-support/chat",
+      expect.objectContaining({
+        body: expect.stringContaining("Show me all upcoming content schedules."),
+      })
+    );
+    const requestBody = JSON.parse(global.fetch.mock.calls[0][1].body);
+    expect(requestBody.timeZone).toEqual(expect.any(String));
+  });
+
   it("sends admin display questions and identifies the read-only tool result", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
