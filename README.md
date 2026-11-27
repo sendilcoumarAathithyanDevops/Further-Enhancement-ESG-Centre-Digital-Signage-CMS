@@ -97,12 +97,13 @@ AI Support runs locally through Ollama; the browser sends requests to the CMS ba
    ```env
    OLLAMA_URL=http://localhost:11434
    OLLAMA_SUPPORT_MODEL=bonsai-2
+   OLLAMA_KEEP_ALIVE=10m
    ```
 
 4. Start the backend with `npm run start:backend`, then the React app with `npm start`.
 5. Sign in as a producer or administrator and open AI Support.
 
-AI requests use CPU inference to avoid GPU/CUDA incompatibilities. This works on machines where Ollama's GPU backend cannot run, but may be slower. To use a different local model, pull it with `ollama pull <model>` and set `OLLAMA_SUPPORT_MODEL` to that model name.
+AI requests use CPU inference because the installed Ollama CUDA runtime fails on this machine; keeping CPU inference avoids GPU-generation errors. Support replies are capped at 384 generated tokens, template generation at 2048 tokens, and only the latest 12 chat messages are sent to reduce unnecessary generation and prompt-processing time. The model stays loaded for 10 minutes by default to avoid repeated cold starts; adjust `OLLAMA_KEEP_ALIVE` if you need to trade memory use for load time. For faster responses, a smaller local model can be pulled with `ollama pull <model>` and selected with `OLLAMA_SUPPORT_MODEL`.
 
 ### AI assistant tools and permissions
 

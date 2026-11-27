@@ -310,9 +310,10 @@ router.post("/ai-generated", requireTemplateCreator, async (req, res) => {
       body: JSON.stringify({
         model,
         stream: false,
+        keep_alive: process.env.OLLAMA_KEEP_ALIVE || "10m",
         format: "json",
         think: false,
-        options: { num_gpu: 0 },
+        options: { num_gpu: 0, num_predict: 2048 },
         messages: [
           {
             role: "system",

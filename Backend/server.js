@@ -1313,7 +1313,7 @@ app.post("/ai-support/chat", async (req, res) => {
       typeof message.content === "string" &&
       message.content.trim()
     )
-    .slice(-20)
+    .slice(-12)
     .map((message) => ({
       role: message.role,
       content: message.content.trim(),
@@ -1484,8 +1484,9 @@ app.post("/ai-support/chat", async (req, res) => {
       body: JSON.stringify({
         model: process.env.OLLAMA_SUPPORT_MODEL || "bonsai-2",
         stream: false,
+        keep_alive: process.env.OLLAMA_KEEP_ALIVE || "10m",
         think: false,
-        options: { num_gpu: 0 },
+        options: { num_gpu: 0, num_predict: 384 },
         messages: [
           {
             role: "system",
