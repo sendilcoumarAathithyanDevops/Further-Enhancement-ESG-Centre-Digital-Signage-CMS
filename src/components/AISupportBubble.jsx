@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HiOutlineChatBubbleLeftRight, HiPaperAirplane, HiXMark } from "react-icons/hi2";
+import AIMessageContent from "./AIMessageContent";
 import "./AISupportBubble.css";
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
@@ -376,7 +377,11 @@ export default function AISupportBubble() {
                       ` · synced ${new Date(message.tool.syncedAt).toLocaleTimeString()}`}
                   </span>
                 )}
-                {message.content}
+                {message.role === "assistant" ? (
+                  <AIMessageContent content={message.content} />
+                ) : (
+                  message.content
+                )}
                 {message.choices && (
                   <div className="ai-support-choices">
                     {message.choices.map((choice) => (

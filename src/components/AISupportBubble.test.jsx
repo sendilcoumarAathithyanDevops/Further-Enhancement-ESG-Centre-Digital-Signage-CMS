@@ -226,6 +226,33 @@ describe("AI support template creation", () => {
     );
   });
 
+  it("renders assistant Markdown formatting and headings safely", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        success: true,
+        message:
+          "## **For Digital Signage**\n\n1. **Bold**, *italic*, <u>underlined</u>, and `code`.\n2. <img src=x onerror=alert(1)>",
+      }),
+    });
+    render(<AISupportBubble />);
+    fireEvent.click(screen.getByRole("button", { name: "Open AI support chat" }));
+
+    const input = screen.getByRole("textbox", { name: "Support message" });
+    fireEvent.change(input, { target: { value: "Format signage content." } });
+    fireEvent.submit(input.closest("form"));
+
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "For Digital Signage" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bold", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("italic", { selector: "em" })).toBeInTheDocument();
+    expect(screen.getByText("underlined", { selector: "u" })).toBeInTheDocument();
+    expect(screen.getByText("code", { selector: "code" })).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
+  });
+
   it("offers upcoming schedules to producers and sends the request to AI Support", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -251,6 +278,7 @@ describe("AI support template creation", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       "http://localhost:5000/ai-support/chat",
       expect.objectContaining({
+        credentials: "include",
         body: expect.stringContaining("Show me all upcoming content schedules."),
       })
     );
