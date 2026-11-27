@@ -432,10 +432,10 @@ function Scheduler() {
 
   const confirmCommand = (monitor, type) => {
     const labels = {
-      sleep: {
-        title: "Turn projector off?",
-        message: `The projector display for ${monitor.monitor_name} will turn off. The laptop will stay awake and connected.`,
-        confirmLabel: "Turn Projector Off",
+      stop: {
+        title: "Close signage kiosk?",
+        message: `The kiosk browser on ${monitor.monitor_name} will close. The PC and Display Agent will stay online so you can launch the signage again.`,
+        confirmLabel: "Close Kiosk",
         path: `/api/admin/monitors/${monitor.monitor_id}/sleep-now`,
         icon: <FiMoon />,
       },
@@ -680,8 +680,8 @@ function Scheduler() {
                         </button>
                       </div>
                       <div className="scheduler-actions-row">
-                        <button type="button" title={online ? "Turn off the projector; laptop stays awake" : "Agent must be online to turn off the projector"} disabled={!online} onClick={() => confirmCommand(monitor, "sleep")}>
-                          <FiMoon /> Sleep
+                        <button type="button" title={online ? "Close the kiosk; PC and Display Agent stay online" : "Agent must be online to close the kiosk"} disabled={!online} onClick={() => confirmCommand(monitor, "stop")}>
+                          <FiX /> Stop Signage
                         </button>
                         <button type="button" title={!canWake ? "Requires a paired monitor and, when offline, a valid MAC address" : online ? "Turn on the projector display" : "Send experimental Wake-on-WLAN packet"} disabled={!canWake} onClick={() => confirmCommand(monitor, "wake")}>
                           <FiSun /> Wake

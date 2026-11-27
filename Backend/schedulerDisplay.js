@@ -2465,7 +2465,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       });
       return res.status(202).json({
         success: true,
-        message: "Projector output turned off. The laptop remains awake.",
+        message: "Kiosk browser will close. The PC and Display Agent remain online.",
         command: result,
       });
     } catch (error) {

@@ -401,24 +401,9 @@ function requestWindowsSleep() {
   return "Windows sleep helper started. Watch the display PC to confirm physical sleep.";
 }
 
-async function turnProjectorOff() {
-  if (process.platform !== "win32") {
-    throw new Error("Projector display controls are supported only on Windows.");
-  }
-  if (config.projectorOff) {
-    return "Projector output is already off. The laptop remains awake.";
-  }
-
-  const targetDisplay = getKioskTargetDisplay();
-  if (!targetDisplay || targetDisplay.isPrimary) {
-    throw new Error("No external projector display is currently connected.");
-  }
-
+async function stopSignage() {
   await stopBrowser();
-  await runDisplaySwitch("/internal");
-  await wait(1500);
-  saveConfig({ projectorOff: true });
-  return "Projector output turned off. The laptop remains awake.";
+  return "Kiosk browser closed. The PC and Display Agent remain online.";
 }
 
 async function turnProjectorOn() {
@@ -443,7 +428,7 @@ async function executeCommand(command) {
     case "sleep-pc":
       return requestWindowsSleep();
     case "display-off":
-      return turnProjectorOff();
+      return stopSignage();
     case "display-on":
       return turnProjectorOn();
     default:
