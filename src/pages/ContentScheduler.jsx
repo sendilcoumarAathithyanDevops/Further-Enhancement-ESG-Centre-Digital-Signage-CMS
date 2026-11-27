@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { io } from "socket.io-client";
 import {
   FiCalendar,
   FiClock,
@@ -178,6 +179,25 @@ function ContentScheduler() {
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const socket = io(API_BASE_URL, {
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+    });
+    let refreshTimer;
+    const refreshSoon = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => loadData({ refresh: true }), 350);
+    };
+
+    socket.on("connect", refreshSoon);
+    socket.on("scheduler-data-updated", refreshSoon);
+    return () => {
+      window.clearTimeout(refreshTimer);
+      socket.disconnect();
+    };
   }, [loadData]);
 
   const filteredSchedules = useMemo(() => {

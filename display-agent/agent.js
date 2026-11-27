@@ -2,7 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const dgram = require("dgram");
-const { spawn, execFile } = require("child_process");
+const { spawn, execFile, execFileSync } = require("child_process");
 const { io } = require("socket.io-client");
 
 const CONFIG_PATH = path.join(__dirname, "config.json");
@@ -16,6 +16,8 @@ const COMMANDS = new Set([
   "restart-browser",
   "reload-project",
   "sleep-pc",
+  "display-off",
+  "display-on",
 ]);
 
 let config;
@@ -108,6 +110,82 @@ function displayUrl() {
   return `${config.displayUrlBase}${selectedPath.startsWith("/") ? "" : "/"}${selectedPath}`;
 }
 
+function getKioskTargetDisplay() {
+  if (process.platform !== "win32") return null;
+
+  try {
+    const result = execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        path.join(__dirname, "get-target-display.ps1"),
+      ],
+      { encoding: "utf8", windowsHide: true, timeout: 5000 }
+    );
+    const display = JSON.parse(result);
+
+    if (
+      !Number.isInteger(display.x) ||
+      !Number.isInteger(display.y) ||
+      typeof display.deviceName !== "string"
+    ) {
+      throw new Error("Windows returned invalid display coordinates.");
+    }
+
+    console.log(
+      `[DISPLAY] Kiosk target: ${display.deviceName} (${display.isPrimary ? "primary" : "external"}) at ${display.x},${display.y}.`
+    );
+    return display;
+  } catch (error) {
+    console.error(
+      "[DISPLAY] Could not detect the external display; Chrome will use Windows' default display:",
+      error.message
+    );
+    return null;
+  }
+}
+
+function runDisplaySwitch(mode) {
+  const displaySwitchPath = path.join(
+    process.env.WINDIR || "C:\\Windows",
+    "System32",
+    "DisplaySwitch.exe"
+  );
+
+  return new Promise((resolve, reject) => {
+    execFile(
+      displaySwitchPath,
+      [mode],
+      { windowsHide: true },
+      (error) => {
+        if (error) {
+          reject(new Error(`Windows could not switch display mode: ${error.message}`));
+          return;
+        }
+        resolve();
+      }
+    );
+  });
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function restoreExtendedDesktop() {
+  if (process.platform !== "win32") {
+    throw new Error("Projector display controls are supported only on Windows.");
+  }
+
+  await runDisplaySwitch("/extend");
+  await wait(1500);
+  saveConfig({ projectorOff: false });
+}
+
 function stopBrowser() {
   return new Promise((resolve) => {
     if (!browserProcess?.pid) {
@@ -139,6 +217,10 @@ async function launchBrowser() {
     return "Kiosk Chrome is already running.";
   }
 
+  if (config.projectorOff) {
+    await restoreExtendedDesktop();
+  }
+
   fs.mkdirSync(PROFILE_PATH, { recursive: true });
   const chromePath = findChrome();
   const args = [
@@ -147,8 +229,12 @@ async function launchBrowser() {
     "--disable-session-crashed-bubble",
     "--disable-infobars",
     `--user-data-dir=${PROFILE_PATH}`,
-    displayUrl(),
   ];
+  const targetDisplay = getKioskTargetDisplay();
+  if (targetDisplay) {
+    args.push(`--window-position=${targetDisplay.x},${targetDisplay.y}`);
+  }
+  args.push(displayUrl());
 
   browserStatus = "starting";
   browserProcess = spawn(chromePath, args, {
@@ -254,6 +340,11 @@ function runWakeScreenHelper(reason = "agent authenticated") {
 }
 
 async function ensureDisplayVisibleAfterWake(reason = "agent authenticated") {
+  if (config.projectorOff) {
+    console.log("[DISPLAY] Projector remains off; use Wake to restore it.");
+    return "Projector remains off.";
+  }
+
   await runWakeScreenHelper(reason);
 
   if (config.autoLaunch === false) return "Automatic launch is disabled.";
@@ -310,6 +401,32 @@ function requestWindowsSleep() {
   return "Windows sleep helper started. Watch the display PC to confirm physical sleep.";
 }
 
+async function turnProjectorOff() {
+  if (process.platform !== "win32") {
+    throw new Error("Projector display controls are supported only on Windows.");
+  }
+  if (config.projectorOff) {
+    return "Projector output is already off. The laptop remains awake.";
+  }
+
+  const targetDisplay = getKioskTargetDisplay();
+  if (!targetDisplay || targetDisplay.isPrimary) {
+    throw new Error("No external projector display is currently connected.");
+  }
+
+  await stopBrowser();
+  await runDisplaySwitch("/internal");
+  await wait(1500);
+  saveConfig({ projectorOff: true });
+  return "Projector output turned off. The laptop remains awake.";
+}
+
+async function turnProjectorOn() {
+  await restoreExtendedDesktop();
+  await launchBrowser();
+  return "Projector output restored and the signage display launched.";
+}
+
 async function executeCommand(command) {
   switch (command) {
     case "launch-display":
@@ -325,6 +442,10 @@ async function executeCommand(command) {
       return "Display reloaded with the latest playlist.";
     case "sleep-pc":
       return requestWindowsSleep();
+    case "display-off":
+      return turnProjectorOff();
+    case "display-on":
+      return turnProjectorOn();
     default:
       throw new Error("Unsupported display command.");
   }

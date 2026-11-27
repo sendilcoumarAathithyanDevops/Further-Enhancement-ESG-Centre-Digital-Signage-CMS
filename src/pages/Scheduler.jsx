@@ -112,6 +112,8 @@ function categoryLabel(value) {
 }
 
 function commandLabel(commandType) {
+  if (commandType === "display_off") return "Projector Off";
+  if (commandType === "display_on") return "Projector On";
   return String(commandType || "")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -431,16 +433,18 @@ function Scheduler() {
   const confirmCommand = (monitor, type) => {
     const labels = {
       sleep: {
-        title: "Put display PC to sleep?",
-        message: `${monitor.monitor_name} will go offline. It can only wake automatically when Wake-on-WLAN is supported or by its next local wake method.`,
-        confirmLabel: "Sleep Now",
+        title: "Turn projector off?",
+        message: `The projector display for ${monitor.monitor_name} will turn off. The laptop will stay awake and connected.`,
+        confirmLabel: "Turn Projector Off",
         path: `/api/admin/monitors/${monitor.monitor_id}/sleep-now`,
         icon: <FiMoon />,
       },
       wake: {
-        title: "Wake display PC?",
-        message: `A Wake-on-WLAN packet will be sent to ${monitor.monitor_name}. Success is confirmed only when the heartbeat returns.`,
-        confirmLabel: "Wake Now",
+        title: monitor.status === "online" ? "Turn projector on?" : "Wake display PC?",
+        message: monitor.status === "online"
+          ? `The projector display for ${monitor.monitor_name} will turn back on. The laptop will stay awake.`
+          : `A Wake-on-WLAN packet will be sent to ${monitor.monitor_name}. Success is confirmed only when the heartbeat returns.`,
+        confirmLabel: monitor.status === "online" ? "Turn Projector On" : "Wake PC",
         path: `/api/admin/monitors/${monitor.monitor_id}/wake-now`,
         icon: <FiSun />,
       },
@@ -614,7 +618,10 @@ function Scheduler() {
                 {group.monitors.map((monitor) => {
                   const state = displayState(monitor);
                   const online = monitor.status === "online";
-                  const canWake = Boolean(monitor.is_paired && hasValidMac(monitor.mac_address));
+                  const canWake = Boolean(
+                    monitor.is_paired &&
+                    (online || hasValidMac(monitor.mac_address))
+                  );
                   const schedule = monitor.power_schedule;
                   return (
                     <article className={`scheduler-display-card scheduler-display-card--${state}`} key={monitor.monitor_id}>
@@ -673,10 +680,10 @@ function Scheduler() {
                         </button>
                       </div>
                       <div className="scheduler-actions-row">
-                        <button type="button" title={online ? "Put PC to sleep now" : "Agent must be online to sleep"} disabled={!online} onClick={() => confirmCommand(monitor, "sleep")}>
+                        <button type="button" title={online ? "Turn off the projector; laptop stays awake" : "Agent must be online to turn off the projector"} disabled={!online} onClick={() => confirmCommand(monitor, "sleep")}>
                           <FiMoon /> Sleep
                         </button>
-                        <button type="button" title={canWake ? "Send experimental Wake-on-WLAN packet" : "Requires paired monitor and valid MAC"} disabled={!canWake} onClick={() => confirmCommand(monitor, "wake")}>
+                        <button type="button" title={!canWake ? "Requires a paired monitor and, when offline, a valid MAC address" : online ? "Turn on the projector display" : "Send experimental Wake-on-WLAN packet"} disabled={!canWake} onClick={() => confirmCommand(monitor, "wake")}>
                           <FiSun /> Wake
                         </button>
                         <button type="button" disabled={!online} onClick={() => confirmCommand(monitor, "launch")}>

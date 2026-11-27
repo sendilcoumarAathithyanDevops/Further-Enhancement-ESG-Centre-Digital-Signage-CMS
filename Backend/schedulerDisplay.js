@@ -23,6 +23,8 @@ const VALID_COMMANDS = new Set([
   "restart-browser",
   "reload-project",
   "sleep-pc",
+  "display-off",
+  "display-on",
 ]);
 
 const COMMAND_DB_TYPES = {
@@ -30,6 +32,8 @@ const COMMAND_DB_TYPES = {
   "restart-browser": "restart_browser",
   "reload-project": "reload_project",
   "sleep-pc": "sleep_pc",
+  "display-off": "display_off",
+  "display-on": "display_on",
 };
 
 const COMMAND_EVENT_NAMES = {
@@ -1370,7 +1374,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
   for (const [route, command] of [
     ["launch", "launch-display"],
     ["restart-browser", "restart-browser"],
-    ["sleep", "sleep-pc"],
+    ["sleep", "display-off"],
   ]) {
     app.post(
       `/api/admin/monitors/:monitorId/${route}`,
@@ -1604,12 +1608,22 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
     const nowDate = new Date();
     const now = toSqlUtc(nowDate);
     try {
-      await db.query(
+      const [endedSchedules] = await db.query(
+        `SELECT schedule_id, monitor_id
+         FROM monitor_schedules
+         WHERE status = 'active' AND end_at <= ?`,
+        [now]
+      );
+
+      const [completedSchedules] = await db.query(
         `UPDATE monitor_schedules
          SET status = 'completed'
          WHERE status = 'active' AND end_at <= ? AND repeat_days IS NULL`,
         [now]
       );
+      if (completedSchedules.affectedRows > 0) {
+        io.emit("scheduler-data-updated", { status: "completed" });
+      }
 
       const [expiredRecurringRows] = await db.query(
         `SELECT schedule_id, status, repeat_days, time_zone,
@@ -1709,6 +1723,74 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           console.error(`Unable to activate schedule ${due.schedule_id}:`, error);
         } finally {
           connection.release();
+        }
+      }
+
+      if (endedSchedules.length > 0) {
+        const endedScheduleByMonitor = new Map();
+        for (const schedule of endedSchedules) {
+          if (!endedScheduleByMonitor.has(schedule.monitor_id)) {
+            endedScheduleByMonitor.set(schedule.monitor_id, schedule.schedule_id);
+          }
+        }
+
+        const [welcomeProjects] = await db.query(
+          `SELECT project_id
+           FROM projects
+           WHERE name = ? AND category = 'default'
+             AND status = 'published' AND is_template = FALSE`,
+          ["Welcome Page"]
+        );
+
+        if (welcomeProjects.length !== 1) {
+          console.error(
+            `Unable to restore scheduled displays: expected one published Default project named "Welcome Page", found ${welcomeProjects.length}.`
+          );
+        } else {
+          const welcomeProjectId = welcomeProjects[0].project_id;
+
+          for (const [monitorId, scheduleId] of endedScheduleByMonitor) {
+            const connection = await db.getConnection();
+            try {
+              await connection.beginTransaction();
+              const [activeSchedules] = await connection.query(
+                `SELECT schedule_id
+                 FROM monitor_schedules
+                 WHERE monitor_id = ? AND status = 'active'
+                 LIMIT 1 FOR UPDATE`,
+                [monitorId]
+              );
+              if (activeSchedules.length > 0) {
+                await connection.rollback();
+                continue;
+              }
+
+              await validateMonitorProject(connection, monitorId, welcomeProjectId);
+              await setMonitorProject(connection, monitorId, welcomeProjectId);
+              await connection.commit();
+
+              const updatedAt = new Date().toISOString();
+              io.to(monitorRoom(monitorId)).emit("schedule-updated", {
+                monitorId,
+                projectId: welcomeProjectId,
+                scheduleId,
+                updatedAt,
+              });
+              io.to(monitorRoom(monitorId)).emit("playlist-updated", {
+                monitorId,
+                updatedAt,
+              });
+              io.emit("scheduler-data-updated", { monitorId, scheduleId });
+            } catch (error) {
+              await connection.rollback();
+              console.error(
+                `Unable to restore the Welcome Page after schedule ${scheduleId}:`,
+                error
+              );
+            } finally {
+              connection.release();
+            }
+          }
         }
       }
     } catch (error) {
@@ -2378,12 +2460,12 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
     try {
       const result = await issueAgentCommand({
         monitorId,
-        command: "sleep-pc",
+        command: "display-off",
         requestedBy: req.session.user.user_id,
       });
       return res.status(202).json({
         success: true,
-        message: "Sleep command sent to the display PC.",
+        message: "Projector output turned off. The laptop remains awake.",
         command: result,
       });
     } catch (error) {
@@ -2401,6 +2483,28 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       return res.status(400).json({ success: false, message: "Invalid display ID." });
     }
     try {
+      const [monitorRows] = await db.query(
+        `SELECT status FROM monitors WHERE monitor_id = ? LIMIT 1`,
+        [monitorId]
+      );
+      if (monitorRows.length === 0) {
+        return res.status(404).json({ success: false, message: "Display not found." });
+      }
+
+      if (monitorRows[0].status === "online") {
+        const command = await issueAgentCommand({
+          monitorId,
+          command: "display-on",
+          requestedBy: req.session.user.user_id,
+        });
+        return res.status(202).json({
+          success: true,
+          status: command.status,
+          message: "Projector output restored. The laptop remains awake.",
+          command,
+        });
+      }
+
       const result = await issueWakeForMonitor({
         monitorId,
         requestedBy: req.session.user.user_id,
@@ -2527,7 +2631,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
   }
 
   const projectSchedulerEnabled =
-    String(process.env.ENABLE_PROJECT_SCHEDULER || "false").toLowerCase() === "true";
+    String(process.env.ENABLE_PROJECT_SCHEDULER || "true").toLowerCase() === "true";
   const schedulerTimer = projectSchedulerEnabled
     ? setInterval(activateSchedules, SCHEDULER_INTERVAL_MS)
     : null;

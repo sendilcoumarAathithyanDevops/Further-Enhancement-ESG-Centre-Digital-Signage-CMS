@@ -4695,35 +4695,6 @@ app.put("/api/monitors/:monitorId/playlist", requireAdmin, async (req, res) => {
       }
     }
 
-    // Prevent project from being used by another monitor
-    if (uniqueProjectIds.length > 0) {
-      const placeholders = uniqueProjectIds.map(() => "?").join(",");
-
-      const [existingAssignments] = await connection.query(
-        `
-    SELECT
-      mpi.project_id,
-      m.monitor_name
-    FROM monitor_playlist_items mpi
-    JOIN monitors m
-      ON mpi.monitor_id = m.monitor_id
-    WHERE mpi.project_id IN (${placeholders})
-      AND mpi.monitor_id <> ?
-      AND mpi.is_active = TRUE
-    LIMIT 1
-    `,
-        [...uniqueProjectIds, monitorId]
-      );
-
-      if (existingAssignments.length > 0) {
-        await connection.rollback();
-        return res.status(409).json({
-          success: false,
-          message: `This project is already assigned to ${existingAssignments[0].monitor_name}.`,
-        });
-      }
-    }
-
     await connection.query(
       `
       DELETE FROM monitor_playlist_items
