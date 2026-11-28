@@ -439,6 +439,13 @@ function Scheduler() {
         path: `/api/admin/monitors/${monitor.monitor_id}/sleep-now`,
         icon: <FiMoon />,
       },
+      sleepPc: {
+        title: "Put display PC to sleep?",
+        message: `${monitor.monitor_name} will go offline and stop showing signage. You must wake the PC locally before the Display Agent and Launch command can work again.`,
+        confirmLabel: "Sleep PC",
+        path: `/api/admin/monitors/${monitor.monitor_id}/sleep-pc`,
+        icon: <FiMoon />,
+      },
       wake: {
         title: monitor.status === "online" ? "Turn projector on?" : "Wake display PC?",
         message: monitor.status === "online"
@@ -679,18 +686,23 @@ function Scheduler() {
                           <FiKey /> Reset Pairing
                         </button>
                       </div>
-                      <div className="scheduler-actions-row">
-                        <button type="button" title={online ? "Close the kiosk; PC and Display Agent stay online" : "Agent must be online to close the kiosk"} disabled={!online} onClick={() => confirmCommand(monitor, "stop")}>
-                          <FiX /> Stop Signage
-                        </button>
-                        <button type="button" title={!canWake ? "Requires a paired monitor and, when offline, a valid MAC address" : online ? "Turn on the projector display" : "Send experimental Wake-on-WLAN packet"} disabled={!canWake} onClick={() => confirmCommand(monitor, "wake")}>
-                          <FiSun /> Wake
-                        </button>
+                      <div className="scheduler-actions-row scheduler-actions-row--commands">
                         <button type="button" disabled={!online} onClick={() => confirmCommand(monitor, "launch")}>
                           <FiPlay /> Launch
                         </button>
+                        <button type="button" title={online ? "Close the kiosk; PC and Display Agent stay online" : "Agent must be online to close the kiosk"} disabled={!online} onClick={() => confirmCommand(monitor, "stop")}>
+                          <FiX /> Stop
+                        </button>
                         <button type="button" disabled={!online} onClick={() => confirmCommand(monitor, "restart")}>
                           <FiRotateCw /> Restart
+                        </button>
+                      </div>
+                      <div className="scheduler-actions-row scheduler-actions-row--power">
+                        <button type="button" title={online ? "Put the display PC to sleep; it must be woken locally before remote commands work" : "Agent must be online to put the display PC to sleep"} disabled={!online} onClick={() => confirmCommand(monitor, "sleepPc")}>
+                          <FiMoon /> Sleep
+                        </button>
+                        <button type="button" title={!canWake ? "Requires a paired monitor and, when offline, a valid MAC address" : online ? "Turn on the projector display" : "Send experimental Wake-on-WLAN packet"} disabled={!canWake} onClick={() => confirmCommand(monitor, "wake")}>
+                          <FiSun /> Wake
                         </button>
                       </div>
                     </article>

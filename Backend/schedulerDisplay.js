@@ -1374,6 +1374,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
   for (const [route, command] of [
     ["launch", "launch-display"],
     ["restart-browser", "restart-browser"],
+    ["sleep-pc", "sleep-pc"],
     ["sleep", "display-off"],
   ]) {
     app.post(
