@@ -9,7 +9,11 @@ const {
   parseRepeatDays,
   schedulesOverlap,
 } = require("./scheduleRecurrence");
-const { isProjectCategoryCompatible } = require("./categoryPolicy");
+const { getDisplayFallbackProject } = require("./displayFallback");
+const {
+  isProjectCategoryAssignable,
+  isProjectCategoryCompatible,
+} = require("./categoryPolicy");
 
 const VALID_CATEGORIES = new Set(["environmental", "social", "governance", "default"]);
 const VALID_SCHEDULE_STATUSES = new Set([
@@ -700,6 +704,37 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
         [monitorId]
       );
 
+      let project = projects[0] || null;
+      if (!project || project.category === "default") {
+        const [activeSchedules] = await db.query(
+          `SELECT project_id
+           FROM monitor_schedules
+           WHERE monitor_id = ? AND status = 'active'
+           ORDER BY start_at DESC, schedule_id DESC
+           LIMIT 1`,
+          [monitorId]
+        );
+        if (activeSchedules.length > 0) {
+          const [scheduledProjects] = await db.query(
+            `SELECT project_id, name, category
+             FROM projects
+             WHERE project_id = ? AND status = 'published'
+             LIMIT 1`,
+            [activeSchedules[0].project_id]
+          );
+          project = scheduledProjects[0] || null;
+        } else {
+          project = await getDisplayFallbackProject(db);
+        }
+      }
+
+      if (!project) {
+        return res.status(503).json({
+          success: false,
+          message: "No active project or published fallback is available.",
+        });
+      }
+
       return res.json({
         success: true,
         monitor: {
@@ -707,7 +742,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           monitorName: monitor.monitor_name,
           displayPath: `/display/${monitor.pairing_code}`,
         },
-        project: projects[0] || null,
+        project,
       });
     } catch (error) {
       console.error("Current assignment error:", error);
@@ -998,7 +1033,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
 
     const [projectRows] = await connection.query(
       `SELECT project_id, category, status, is_template
-       FROM projects WHERE project_id = ? LIMIT 1`,
+       FROM projects WHERE project_id = ? LIMIT 1 FOR UPDATE`,
       [projectId]
     );
     if (projectRows.length === 0) {
@@ -1008,14 +1043,23 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
     }
 
     const project = projectRows[0];
+    const fallbackProject = await getDisplayFallbackProject(connection);
+    if (
+      fallbackProject &&
+      Number(fallbackProject.project_id) === Number(projectId)
+    ) {
+      const error = new Error("The selected fallback project cannot be scheduled on a display.");
+      error.statusCode = 409;
+      throw error;
+    }
     if (project.status !== "published" || project.is_template) {
       const error = new Error("Only published, non-template projects can be scheduled.");
       error.statusCode = 400;
       throw error;
     }
-    if (!isProjectCategoryCompatible(project.category, monitorRows[0].monitor_category)) {
+    if (!isProjectCategoryAssignable(project.category, monitorRows[0].monitor_category)) {
       const error = new Error(
-        "The project category must match the display category or be Default."
+        "Project category must match the display category. Default projects are reserved for fallback."
       );
       error.statusCode = 409;
       throw error;
@@ -1283,14 +1327,20 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
     );
   }
 
-  async function validateMonitorProject(connection, monitorId, projectId) {
+  async function validateMonitorProject(
+    connection,
+    monitorId,
+    projectId,
+    { allowDefaultFallback = false } = {}
+  ) {
     const [rows] = await connection.query(
       `SELECT m.monitor_id, m.monitor_category,
               p.project_id, p.category, p.status, p.is_template
        FROM monitors m
        JOIN projects p ON p.project_id = ?
        WHERE m.monitor_id = ?
-       LIMIT 1`,
+       LIMIT 1
+       FOR UPDATE`,
       [projectId, monitorId]
     );
     if (rows.length === 0) {
@@ -1299,14 +1349,28 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
       throw error;
     }
     const row = rows[0];
+    if (!allowDefaultFallback) {
+      const fallbackProject = await getDisplayFallbackProject(connection);
+      if (
+        fallbackProject &&
+        Number(fallbackProject.project_id) === Number(projectId)
+      ) {
+        const error = new Error("The selected fallback project cannot be assigned to a display.");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
     if (row.status !== "published" || row.is_template) {
       const error = new Error("Only published, non-template projects can be displayed.");
       error.statusCode = 400;
       throw error;
     }
-    if (!isProjectCategoryCompatible(row.category, row.monitor_category)) {
+    const categoryAllowed = allowDefaultFallback
+      ? isProjectCategoryCompatible(row.category, row.monitor_category)
+      : isProjectCategoryAssignable(row.category, row.monitor_category);
+    if (!categoryAllowed) {
       const error = new Error(
-        "The project category must match the display category or be Default."
+        "Project category must match the display category. Default projects are reserved for fallback."
       );
       error.statusCode = 409;
       throw error;
@@ -1735,20 +1799,13 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
           }
         }
 
-        const [welcomeProjects] = await db.query(
-          `SELECT project_id
-           FROM projects
-           WHERE name = ? AND category = 'default'
-             AND status = 'published' AND is_template = FALSE`,
-          ["Welcome Page"]
-        );
-
-        if (welcomeProjects.length !== 1) {
+        const fallbackProject = await getDisplayFallbackProject(db);
+        if (!fallbackProject) {
           console.error(
-            `Unable to restore scheduled displays: expected one published Default project named "Welcome Page", found ${welcomeProjects.length}.`
+            "Unable to restore scheduled displays: no published Default fallback project is configured."
           );
         } else {
-          const welcomeProjectId = welcomeProjects[0].project_id;
+          const fallbackProjectId = fallbackProject.project_id;
 
           for (const [monitorId, scheduleId] of endedScheduleByMonitor) {
             const connection = await db.getConnection();
@@ -1766,14 +1823,16 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
                 continue;
               }
 
-              await validateMonitorProject(connection, monitorId, welcomeProjectId);
-              await setMonitorProject(connection, monitorId, welcomeProjectId);
+              await validateMonitorProject(connection, monitorId, fallbackProjectId, {
+                allowDefaultFallback: true,
+              });
+              await setMonitorProject(connection, monitorId, fallbackProjectId);
               await connection.commit();
 
               const updatedAt = new Date().toISOString();
               io.to(monitorRoom(monitorId)).emit("schedule-updated", {
                 monitorId,
-                projectId: welcomeProjectId,
+                projectId: fallbackProjectId,
                 scheduleId,
                 updatedAt,
               });
@@ -1785,7 +1844,7 @@ function registerSchedulerDisplayFeatures({ app, io, db, requireAdmin }) {
             } catch (error) {
               await connection.rollback();
               console.error(
-                `Unable to restore the Welcome Page after schedule ${scheduleId}:`,
+                `Unable to restore the configured fallback project after schedule ${scheduleId}:`,
                 error
               );
             } finally {

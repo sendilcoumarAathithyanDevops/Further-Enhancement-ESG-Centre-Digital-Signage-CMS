@@ -35,6 +35,13 @@ function DisplayManager() {
     const [availableProjects, setAvailableProjects] = useState([]);
     const [playlistItems, setPlaylistItems] = useState([]);
     const [playlistLoading, setPlaylistLoading] = useState(false);
+    const [fallbackProjects, setFallbackProjects] = useState([]);
+    const [fallbackProjectId, setFallbackProjectId] = useState("");
+    const [fallbackSettingsLoading, setFallbackSettingsLoading] = useState(true);
+    const [fallbackSaving, setFallbackSaving] = useState(false);
+    const [fallbackError, setFallbackError] = useState("");
+    const [fallbackWarning, setFallbackWarning] = useState("");
+    const [fallbackSuccess, setFallbackSuccess] = useState("");
 
     const loadDisplays = async () => {
         try {
@@ -57,9 +64,68 @@ function DisplayManager() {
         }
     };
 
+    const loadFallbackSettings = async () => {
+        setFallbackSettingsLoading(true);
+        setFallbackError("");
+        try {
+            const res = await fetch("http://localhost:5000/api/admin/display-fallback", {
+                method: "GET",
+                credentials: "include",
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "Unable to load fallback project settings.");
+            }
+
+            setFallbackProjects(Array.isArray(data.projects) ? data.projects : []);
+            setFallbackProjectId(
+                data.fallbackProjectId ? String(data.fallbackProjectId) : ""
+            );
+            setFallbackWarning(data.warning || "");
+        } catch (err) {
+            console.error("Load fallback project settings error:", err);
+            setFallbackError(err.message || "Unable to load fallback project settings.");
+        } finally {
+            setFallbackSettingsLoading(false);
+        }
+    };
+
     useEffect(() => {
         loadDisplays();
+        loadFallbackSettings();
     }, []);
+
+    const saveFallbackProject = async () => {
+        if (!fallbackProjectId) {
+            setFallbackError("Select a published Default project first.");
+            return;
+        }
+
+        setFallbackSaving(true);
+        setFallbackError("");
+        setFallbackWarning("");
+        setFallbackSuccess("");
+        try {
+            const res = await fetch("http://localhost:5000/api/admin/display-fallback", {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                credentials: "include",
+                body: JSON.stringify({ projectId: Number(fallbackProjectId) }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.message || "Unable to save fallback project settings.");
+            }
+            setFallbackSuccess(data.message || "Fallback project saved.");
+        } catch (err) {
+            console.error("Save fallback project settings error:", err);
+            setFallbackError(err.message || "Unable to save fallback project settings.");
+        } finally {
+            setFallbackSaving(false);
+        }
+    };
 
     const handleCreateDisplay = async () => {
         try {
@@ -191,22 +257,10 @@ function DisplayManager() {
         return playlistItems.find((item) => item.projectId === projectId);
     };
 
-    const isAssignedToAnotherMonitor = (project) => {
-        if (!project.assigned_monitor_id || !selectedMonitor) {
-            return false;
-        }
-
-        return Number(project.assigned_monitor_id) !== Number(selectedMonitor.monitor_id);
-    };
-
     const toggleProject = (project) => {
         const projectId = Number(project.project_id);
         if (!Number.isInteger(projectId) || projectId <= 0) {
             alert("This project has no valid ID. Refresh the project list and try again.");
-            return;
-        }
-
-        if (isAssignedToAnotherMonitor(project)) {
             return;
         }
 
@@ -357,10 +411,6 @@ function DisplayManager() {
         (display) => display.monitor_category === "governance"
     ).length;
 
-    const defaultCount = displays.filter(
-        (display) => display.monitor_category === "default"
-    ).length;
-
     return (
         <div className="display-manager-page">
             <header className="display-manager-header">
@@ -382,7 +432,6 @@ function DisplayManager() {
                         <option value="environmental">Environmental</option>
                         <option value="social">Social</option>
                         <option value="governance">Governance</option>
-                        <option value="default">Default</option>
                     </select>
 
                     <button
@@ -430,13 +479,68 @@ function DisplayManager() {
                     tone="purple"
                 />
 
-                <SummaryCard
-                    icon={<FiMonitor />}
-                    label="Default"
-                    value={defaultCount}
-                    helper="General-purpose displays"
-                    tone="orange"
-                />
+            </section>
+
+            <section className="dm-fallback-settings" aria-labelledby="dm-fallback-title">
+                <div className="dm-fallback-copy">
+                    <span>Default display content</span>
+                    <h2 id="dm-fallback-title">Fallback project</h2>
+                    <p>
+                        Choose a published Default-category project. It is shown when a display
+                        has no assigned playlist and no active scheduled project.
+                    </p>
+                </div>
+                <div className="dm-fallback-controls">
+                    <label htmlFor="dm-fallback-project">Published Default project</label>
+                    <div className="dm-fallback-control-row">
+                        <select
+                            id="dm-fallback-project"
+                            value={fallbackProjectId}
+                            onChange={(event) => {
+                                setFallbackProjectId(event.target.value);
+                                setFallbackError("");
+                                setFallbackSuccess("");
+                            }}
+                            disabled={fallbackSettingsLoading || fallbackSaving || fallbackProjects.length === 0}
+                        >
+                            <option value="">
+                                {fallbackSettingsLoading
+                                    ? "Loading fallback projects..."
+                                    : "Choose a fallback project"}
+                            </option>
+                            {fallbackProjects.map((project) => (
+                                <option key={project.project_id} value={project.project_id}>
+                                    {project.name}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            className="display-manager-button display-manager-button--primary"
+                            onClick={saveFallbackProject}
+                            disabled={
+                                fallbackSettingsLoading ||
+                                fallbackSaving ||
+                                fallbackProjects.length === 0 ||
+                                !fallbackProjectId
+                            }
+                        >
+                            {fallbackSaving ? "Saving..." : "Save fallback"}
+                        </button>
+                    </div>
+                    {fallbackError && <p className="dm-fallback-message error" role="alert">{fallbackError}</p>}
+                    {!fallbackError && fallbackWarning && (
+                        <p className="dm-fallback-message warning" role="status">{fallbackWarning}</p>
+                    )}
+                    {!fallbackError && !fallbackWarning && fallbackSuccess && (
+                        <p className="dm-fallback-message success" role="status">{fallbackSuccess}</p>
+                    )}
+                    {!fallbackSettingsLoading && fallbackProjects.length === 0 && !fallbackError && (
+                        <p className="dm-fallback-message warning" role="status">
+                            No published Default-category projects are available.
+                        </p>
+                    )}
+                </div>
             </section>
 
             <div className="dm-info-card">
@@ -558,23 +662,21 @@ function DisplayManager() {
                                     <h3>Available Projects</h3>
 
                                     {availableProjects.length === 0 ? (
-                                        <p>No published projects found for this category.</p>
+                                        <p>
+                                            {selectedMonitor?.monitor_category === "default"
+                                                ? "Default-category displays use the selected fallback project when no project is assigned."
+                                                : "No published projects found for this category."}
+                                        </p>
                                     ) : (
                                         availableProjects.map((project) => {
                                             const selected = isProjectSelected(project.project_id);
-                                            const locked = isAssignedToAnotherMonitor(project);
                                             const playlistItem = getPlaylistItem(project.project_id);
 
                                             return (
                                                 <div
                                                     key={project.project_id}
-                                                    className={`dm-project-card ${selected ? "selected" : ""} ${locked ? "locked" : ""
-                                                        }`}
-                                                    onClick={() => {
-                                                        if (!locked) {
-                                                            toggleProject(project);
-                                                        }
-                                                    }}
+                                                    className={`dm-project-card ${selected ? "selected" : ""}`}
+                                                    onClick={() => toggleProject(project)}
                                                 >
                                                     <div className="dm-project-thumb">
                                                         {project.name.charAt(0).toUpperCase()}
@@ -591,14 +693,9 @@ function DisplayManager() {
                                                             </span>
                                                         </div>
 
-                                                        {locked && (
-                                                            <small>
-                                                                Already assigned to {project.assigned_monitor_name}
-                                                            </small>
-                                                        )}
                                                     </div>
 
-                                                    {selected && !locked && (
+                                                    {selected && (
                                                         <div
                                                             className="dm-duration-panel"
                                                             onClick={(e) => e.stopPropagation()}
@@ -651,10 +748,9 @@ function DisplayManager() {
                                                         </div>
                                                     )}
                                                     <div
-                                                        className={`dm-check-box ${selected || locked ? "checked" : ""
-                                                            }`}
+                                                        className={`dm-check-box ${selected ? "checked" : ""}`}
                                                     >
-                                                        {selected || locked ? "✓" : ""}
+                                                        {selected ? "✓" : ""}
                                                     </div>
                                                 </div>
                                             );
@@ -688,6 +784,23 @@ function DisplayManager() {
                                                         onClick={() => movePlaylistItem(item.projectId, 1)}
                                                     >
                                                         ↓
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="dm-remove-playlist-item"
+                                                        aria-label={`Remove ${item.projectName} from playlist`}
+                                                        title="Remove from playlist"
+                                                        onClick={() =>
+                                                            setPlaylistItems((currentItems) =>
+                                                                currentItems.filter(
+                                                                    (currentItem) =>
+                                                                        Number(currentItem.projectId) !==
+                                                                        Number(item.projectId)
+                                                                )
+                                                            )
+                                                        }
+                                                    >
+                                                        ×
                                                     </button>
                                                 </div>
                                             </div>

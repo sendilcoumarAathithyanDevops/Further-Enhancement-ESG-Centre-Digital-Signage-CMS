@@ -28,8 +28,17 @@ function isProjectCategoryCompatible(category, displayCategory) {
   );
 }
 
+function isProjectCategoryAssignable(category, displayCategory) {
+  return (
+    category !== "default" &&
+    displayCategory !== "default" &&
+    category === displayCategory
+  );
+}
+
 module.exports = {
   isProjectCategoryAllowed,
+  isProjectCategoryAssignable,
   isProjectCategoryCompatible,
   isTemplateCategoryAllowed,
 };

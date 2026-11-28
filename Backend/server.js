@@ -10,8 +10,14 @@ const db = require("./db");
 const { validateProjectLayout } = require("./layoutValidation");
 const { registerSchedulerDisplayFeatures } = require("./schedulerDisplay");
 const {
+  DEFAULT_FALLBACK_PROJECT_NAME,
+  getDisplayFallbackProject,
+  isPublishedFallbackProject,
+  removeFallbackProjectAssignments,
+} = require("./displayFallback");
+const {
   isProjectCategoryAllowed,
-  isProjectCategoryCompatible,
+  isProjectCategoryAssignable,
 } = require("./categoryPolicy");
 const {
   sendSignupVerificationEmail,
@@ -4336,10 +4342,10 @@ app.post("/monitors", requireAdmin, async (req, res) => {
       });
     }
 
-    if (!VALID_MONITOR_CATEGORIES.has(category)) {
+    if (!VALID_CATEGORIES.has(category)) {
       return res.status(400).json({
         success: false,
-        message: "Invalid category.",
+        message: "Displays must use Environmental, Social, or Governance category.",
       });
     }
 
@@ -4433,39 +4439,30 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
             'canvas_order', c.canvas_order,
             'name', c.name
           )
-        ) AS pages,
-        mpi.monitor_id AS assigned_monitor_id,
-        m.monitor_name AS assigned_monitor_name
+        ) AS pages
       FROM projects p
 
       LEFT JOIN canvases c
         ON p.project_id = c.project_id
 
-      LEFT JOIN monitor_playlist_items mpi
-        ON p.project_id = mpi.project_id
-        AND mpi.is_active = TRUE
-
-      LEFT JOIN monitors m
-        ON mpi.monitor_id = m.monitor_id
-
       WHERE p.is_template = FALSE
         AND p.status = 'published'
-        AND (? = 'default' OR p.category = ? OR p.category = 'default')
+        AND p.category = ?
+        AND p.category <> 'default'
 
       GROUP BY
         p.project_id,
         p.name,
         p.description,
         p.category,
-        p.status,
-        mpi.monitor_id,
-        m.monitor_name
+        p.status
 
       ORDER BY p.updated_at DESC
       `,
-      [category, category]
+      [category]
     );
 
+    const fallbackProject = await getDisplayFallbackProject(db);
     // Convert JSON string to object
     const formattedProjects = projects.map((project) => {
 
@@ -4489,7 +4486,9 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
         pages
       };
 
-    });
+    }).filter(
+      (project) => Number(project.project_id) !== Number(fallbackProject?.project_id)
+    );
 
     return res.json({
       success: true,
@@ -4502,6 +4501,115 @@ app.get("/api/display-manager/projects", requireAdmin, async (req, res) => {
       success: false,
       message: "Unable to load projects.",
     });
+  }
+});
+
+app.get("/api/admin/display-fallback", requireAdmin, async (req, res) => {
+  try {
+    const [projectRows] = await db.query(
+      `SELECT project_id, name, category, status, is_template
+       FROM projects
+       WHERE category = ? AND status = ?
+       ORDER BY name ASC, project_id ASC`,
+      ["default", "published"]
+    );
+    const projects = projectRows.filter(isPublishedFallbackProject);
+    const [settings] = await db.query(
+      `SELECT project_id
+       FROM display_fallback_settings
+       WHERE setting_id = ?
+       LIMIT 1`,
+      [1]
+    );
+    const selectedProjectId = settings.length > 0
+      ? settings[0].project_id
+      : projects.find((project) => project.name === DEFAULT_FALLBACK_PROJECT_NAME)?.project_id;
+    const selectedProject = projects.find(
+      (project) => Number(project.project_id) === Number(selectedProjectId)
+    );
+
+    return res.json({
+      success: true,
+      projects: projects.map(({ project_id, name }) => ({ project_id, name })),
+      fallbackProjectId: selectedProject?.project_id ?? "",
+      warning: settings.length > 0 && !selectedProject
+        ? "The saved fallback is no longer a published Default project. Choose and save a replacement."
+        : "",
+    });
+  } catch (error) {
+    console.error("Get display fallback settings error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to load fallback project settings.",
+    });
+  }
+});
+
+app.put("/api/admin/display-fallback", requireAdmin, async (req, res) => {
+  const projectId = Number(req.body?.projectId);
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Select a valid fallback project.",
+    });
+  }
+
+  let connection;
+  try {
+    connection = await db.getConnection();
+    await connection.beginTransaction();
+    const [projectRows] = await connection.query(
+      `SELECT project_id, category, status, is_template
+       FROM projects
+       WHERE project_id = ?
+       LIMIT 1
+       FOR UPDATE`,
+      [projectId]
+    );
+    const project = projectRows.find(isPublishedFallbackProject);
+    if (!project) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Fallback must be a published, non-template Default project.",
+      });
+    }
+
+    const cleanup = await removeFallbackProjectAssignments(connection, projectId);
+    await connection.query(
+      "DELETE FROM display_fallback_settings WHERE setting_id = ?",
+      [1]
+    );
+    await connection.query(
+      `INSERT INTO display_fallback_settings (setting_id, project_id)
+       VALUES (?, ?)`,
+      [1, projectId]
+    );
+    await connection.commit();
+    req.app.get("io").emit("playlist-updated", {
+      fallbackProjectId: projectId,
+      updatedAt: new Date().toISOString(),
+    });
+    req.app.get("io").emit("scheduler-data-updated", {
+      fallbackProjectId: projectId,
+      cancelledSchedules: cleanup.cancelledSchedules,
+    });
+    return res.json({
+      success: true,
+      fallbackProjectId: projectId,
+      removedPlaylistAssignments: cleanup.removedPlaylistAssignments,
+      cancelledSchedules: cleanup.cancelledSchedules,
+      message: "Fallback project saved and reserved from display assignments.",
+    });
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => {});
+    console.error("Save display fallback settings error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save fallback project settings.",
+    });
+  } finally {
+    if (connection) connection.release();
   }
 });
 
@@ -4679,6 +4787,18 @@ app.put("/api/monitors/:monitorId/playlist", requireAdmin, async (req, res) => {
       });
     }
 
+    const fallbackProject = await getDisplayFallbackProject(connection);
+    if (
+      fallbackProject &&
+      uniqueProjectIds.includes(Number(fallbackProject.project_id))
+    ) {
+      await connection.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "The selected fallback project cannot be assigned to a display playlist.",
+      });
+    }
+
     if (uniqueProjectIds.length > 0) {
       const placeholders = uniqueProjectIds.map(() => "?").join(",");
 
@@ -4687,6 +4807,7 @@ app.put("/api/monitors/:monitorId/playlist", requireAdmin, async (req, res) => {
         SELECT project_id, category, status, is_template
         FROM projects
         WHERE project_id IN (${placeholders})
+        FOR UPDATE
         `,
         uniqueProjectIds
       );
@@ -4716,11 +4837,11 @@ app.put("/api/monitors/:monitorId/playlist", requireAdmin, async (req, res) => {
           });
         }
 
-        if (!isProjectCategoryCompatible(project.category, monitor.monitor_category)) {
+        if (!isProjectCategoryAssignable(project.category, monitor.monitor_category)) {
           await connection.rollback();
           return res.status(400).json({
             success: false,
-            message: "Project category must match the monitor category or be Default.",
+            message: "Project category must match the display category. Default projects are reserved for fallback.",
           });
         }
       }
@@ -4870,7 +4991,7 @@ app.get("/api/monitor-display/:tokenCode", async (req, res) => {
 
     const monitor = monitorRows[0];
 
-    const [playlistRows] = await db.query(
+    let [playlistRows] = await db.query(
       `
       SELECT
         mpi.playlist_item_id,
@@ -4891,6 +5012,58 @@ app.get("/api/monitor-display/:tokenCode", async (req, res) => {
       `,
       [monitor.monitor_id]
     );
+
+    if (playlistRows.length === 1 && playlistRows[0].category === "default") {
+      const fallbackProject = await getDisplayFallbackProject(db);
+      if (!fallbackProject) {
+        throw new Error("No published Default fallback project has been configured.");
+      }
+      playlistRows = [{
+        ...fallbackProject,
+        project_name: fallbackProject.name,
+        display_order: playlistRows[0].display_order,
+      }];
+    }
+
+    if (playlistRows.length === 0) {
+      const [activeSchedules] = await db.query(
+        `SELECT project_id
+         FROM monitor_schedules
+         WHERE monitor_id = ? AND status = 'active'
+         ORDER BY start_at DESC, schedule_id DESC
+         LIMIT 1`,
+        [monitor.monitor_id]
+      );
+
+      const isScheduleActive = activeSchedules.length > 0;
+      let fallbackProjects;
+      if (isScheduleActive) {
+        [fallbackProjects] = await db.query(
+            `SELECT project_id, name AS project_name, description, category, status
+             FROM projects
+             WHERE project_id = ? AND status = 'published'
+             LIMIT 1`,
+            [activeSchedules[0].project_id]
+          );
+      } else {
+        const fallbackProject = await getDisplayFallbackProject(db);
+        fallbackProjects = fallbackProject ? [fallbackProject] : [];
+      }
+
+      if (fallbackProjects.length !== 1) {
+        throw new Error(
+          isScheduleActive
+            ? "The active scheduled project is unavailable."
+            : "No published Default fallback project has been configured."
+        );
+      }
+
+      playlistRows = [{
+        ...fallbackProjects[0],
+        project_name: fallbackProjects[0].project_name || fallbackProjects[0].name,
+        display_order: 1,
+      }];
+    }
 
     const playlist = [];
 

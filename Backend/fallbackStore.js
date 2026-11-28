@@ -629,7 +629,6 @@ function fallbackContentSchedulesQuery(sql, params) {
 function fallbackDisplayManagerProjectsQuery(sql, params) {
   if (!/^SELECT\s+p\.project_id,\s*p\.name,\s*p\.description,\s*p\.category,\s*p\.status/i.test(sql) ||
       !/\bFROM\s+projects\s+p\b/i.test(sql) ||
-      !/\bmonitor_playlist_items\s+mpi\b/i.test(sql) ||
       !/\bJSON_ARRAYAGG\s*\(/i.test(sql)) {
     return null;
   }
@@ -639,14 +638,16 @@ function fallbackDisplayManagerProjectsQuery(sql, params) {
     .filter((project) =>
       !(project.is_template === true || Number(project.is_template) === 1) &&
       project.status === "published" &&
-      (category === "default" || project.category === "default" || project.category === category)
+      category !== "default" &&
+      project.category !== "default" &&
+      project.category === category
     )
     .sort((left, right) =>
       String(right.updated_at || "").localeCompare(String(left.updated_at || "")) ||
       Number(right.project_id) - Number(left.project_id)
     );
 
-  return projects.flatMap((project) => {
+  return projects.map((project) => {
     const pages = (data.canvases || [])
       .filter((canvas) => Number(canvas.project_id) === Number(project.project_id))
       .sort((left, right) =>
@@ -658,30 +659,15 @@ function fallbackDisplayManagerProjectsQuery(sql, params) {
         canvas_order: canvas.canvas_order,
         name: canvas.name,
       }));
-    const assignments = (data.monitor_playlist_items || [])
-      .filter((item) =>
-        Number(item.project_id) === Number(project.project_id) &&
-        (item.is_active === true || Number(item.is_active) === 1)
-      );
-
-    return (assignments.length ? assignments : [null]).map((assignment) => {
-      const monitor = assignment
-        ? (data.monitors || []).find(
-            (item) => Number(item.monitor_id) === Number(assignment.monitor_id)
-          )
-        : null;
-      return {
-        project_id: project.project_id,
-        name: project.name,
-        description: project.description,
-        category: project.category,
-        status: project.status,
-        page_count: pages.length,
-        pages,
-        assigned_monitor_id: monitor?.monitor_id || null,
-        assigned_monitor_name: monitor?.monitor_name || null,
-      };
-    });
+    return {
+      project_id: project.project_id,
+      name: project.name,
+      description: project.description,
+      category: project.category,
+      status: project.status,
+      page_count: pages.length,
+      pages,
+    };
   });
 }
 

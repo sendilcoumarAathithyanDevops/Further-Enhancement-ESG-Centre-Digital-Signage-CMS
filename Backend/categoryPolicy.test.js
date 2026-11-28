@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   isProjectCategoryAllowed,
+  isProjectCategoryAssignable,
   isProjectCategoryCompatible,
   isTemplateCategoryAllowed,
 } = require("./categoryPolicy");
@@ -31,4 +32,12 @@ test("default displays can show any project category", () => {
   assert.equal(isProjectCategoryCompatible("governance", "default"), true);
   assert.equal(isProjectCategoryCompatible("governance", "social"), false);
   assert.equal(isProjectCategoryCompatible("social", "social"), true);
+});
+
+test("manual assignments require the same non-default category", () => {
+  assert.equal(isProjectCategoryAssignable("environmental", "environmental"), true);
+  assert.equal(isProjectCategoryAssignable("environmental", "social"), false);
+  assert.equal(isProjectCategoryAssignable("default", "environmental"), false);
+  assert.equal(isProjectCategoryAssignable("environmental", "default"), false);
+  assert.equal(isProjectCategoryAssignable("default", "default"), false);
 });

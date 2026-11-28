@@ -47,15 +47,17 @@ DB_FALLBACK_SSL=false
 
 Create the local database and import `FYP CMS System Database.sql` into it before starting the backend. The backend first checks the primary, then the local SQL fallback, and uses its JSON file store only if neither SQL database is available. If it switches to the local database after startup, it stays on that database until the backend restarts.
 
-Before updating an existing database, back it up. From the project root, run these additive migrations for project previews, the display power scheduler, and the Default display category:
+Before updating an existing database, back it up. From the project root, run these additive migrations for project previews, the display power scheduler, the Default display category, and the configurable fallback project:
 
 ```powershell
 node Backend/migrations/add-monitor-playlist-pages.js
 node Backend/migrations/add-display-power-schedules.js
 node Backend/migrations/add-default-monitor-category.js
+node Backend/migrations/add-display-fallback-project.js
 ```
 
 They use the SQL connection in `Backend/.env` and are safe to re-run. Do not re-import `FYP CMS System Database.sql` over a database containing data; the dump includes `DROP TABLE` statements.
+The fallback-project migration seeds the published Default-category “Welcome Page” when available. Administrators can change the fallback project in Display Manager.
 
 When using MySQL, run the additive media catalog and audit log migration before using the Media Library or performing uploads. The JSON fallback store creates these records automatically.
 
